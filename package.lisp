@@ -15,6 +15,7 @@
    #:initialize-from-source
    #:y
    #:no-data-points
-   #:sigma)
+   #:sigma
+   #:f-of-x)
   (:nicknames ba))
 

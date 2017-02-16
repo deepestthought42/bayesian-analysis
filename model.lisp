@@ -154,7 +154,7 @@
 
 
 (defun make-likelihood-initializer (model fn-param-list function-body)
-  `(defmethod bayesian-analysis:initialize-likelihood ((model , name) )))
+  `(defmethod bayesian-analysis:initialize-likelihood ((model ,name) (data bayesian-analysis:data))))
 
 (defmacro define-bayesian-model ((name &optional documentation) 
 				 (&rest model-parameters)
