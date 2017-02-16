@@ -6,8 +6,15 @@
   :license "Specify license here"
   :depends-on (#:alexandria
                #:iterate
-               #:let-plus)
+               #:let-plus
+	       #:gsl-cffi)
   :serial t
   :components ((:file "package")
-               (:file "bayesian-analysis")))
+	       (:file "algorithm")
+	       (:file "priors")
+	       (:file "sampling")
+	       (:file "likelihood")
+               (:file "model")
+	       (:file "metropolis-hastings")
+	       (:file "bayesian-analysis")))
 

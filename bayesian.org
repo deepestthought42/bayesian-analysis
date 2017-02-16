@@ -1,0 +1,3 @@
+* TODOs
+** TODO introduce code to block writing slots
+min, max, prior, etc should be immutable
