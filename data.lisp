@@ -40,27 +40,52 @@
 				     source-type source-var-name
 				     source-var-name-f-data-points get-no-data-points-body
 				     x-slots y-slots error-slots all-slots)
-  `(defmethod bayesian-analysis:initialize-from-source ((eql ,name)
-							(,source-var-name ,source-type))
-     (let-plus:let+ ((,object-var-name (make-instance ',name))
-		     ((let-plus:&slots ,@all-slots
-				       no-independent-parameters independent-parameters
-				       no-dependent-parameters dependent-parameters
-				       no-error-parameters error-parameters
-				       no-data-points) ,object-var-name))
-       (setf no-independent-parameters ,(length x-slots) no-dependent-parameters ,(length y-slots)
-	     no-error-parameters ,(length error-slots) independent-parameters ',x-slots
-	     dependent-parameters ',y-slots error-parameters ',error-slots
-	     no-data-points
-	     (funcall #'(lambda (,source-var-name-f-data-points)
-			  (declare (ignorable ,source-var-name-f-data-points))
-			  (progn
-			    ,@get-no-data-points-body))
-		      ,source-var-name))
-       (progn
-	 ,@init-from-source-body))))
+  (alexandria:with-gensyms (type)
+    `(defmethod bayesian-analysis:initialize-from-source ((,type (eql ',name))
+							  (,source-var-name ,source-type))
+       (let-plus:let+ ((,object-var-name (make-instance ',name))
+		       ((let-plus:&slots ,@all-slots
+					 no-independent-parameters independent-parameters
+					 no-dependent-parameters dependent-parameters
+					 no-error-parameters error-parameters
+					 no-data-points) ,object-var-name))
+	 (setf no-independent-parameters ,(length x-slots) no-dependent-parameters ,(length y-slots)
+	       no-error-parameters ,(length error-slots) independent-parameters ',x-slots
+	       dependent-parameters ',y-slots error-parameters ',error-slots
+	       no-data-points
+	       (funcall #'(lambda (,source-var-name-f-data-points)
+			    (declare (ignorable ,source-var-name-f-data-points))
+			    (progn
+			      ,@get-no-data-points-body))
+			,source-var-name))
+	 (progn
+	   ,@init-from-source-body)
+	 (if (not (apply #'= (mapcar #'length (list ,@all-slots))))
+	     (error "All data arrays need to be of the same size!"))
+	 (setf no-data-points (length ,(first all-slots)))
+	 ,object-var-name))))
+
+(defun make-get-parameter-names-method (type-name all independent dependent error)
+  (alexandria:with-gensyms (type)
+    `((defmethod bayesian-analysis:get-all-data-slots ((,type (eql ',type-name)))
+	',all)
+      (defmethod bayesian-analysis:get-independent-parameters ((,type (eql ',type-name)))
+	',independent)
+      (defmethod bayesian-analysis:get-dependent-parameters ((,type (eql ',type-name)))
+	',dependent)
+      (defmethod bayesian-analysis:get-error-parameters ((,type (eql ',type-name)))
+	',error))))
 
 (defgeneric initialize-from-source (data-object source))
+(defgeneric get-all-data-slots (type))
+(defgeneric get-independent-parameters (type))
+(defgeneric get-dependent-parameters (type))
+(defgeneric get-error-parameters (type))
+
+(defun input-checks (y-slots error-slots)
+  (cond
+    ((if (and error-slots (not (= (length y-slots) (length error-slots))))
+	 (error "Need as many error parameters as dependent parameters.")))))
 
 (defmacro define-data-class (name
 			     independent-parameters
@@ -71,17 +96,18 @@
 			     &body init-from-source-body)
   (let+ (((&values x-slots y-slots error-slots all-slots)
 	  (make-all-slots independent-parameters dependent-parameters error-parameters)))
+    (input-checks y-slots error-slots)
     `(progn
        ,(make-class-def name all-slots)
        ,(make-init-from-source-method name init-from-source-body object-var-name
 				      source-type source-var-name
 				      source-var-name-f-data-points get-no-data-points-body
-				      x-slots y-slots error-slots all-slots))))
+				      x-slots y-slots error-slots all-slots)
+       ,@(make-get-parameter-names-method name all-slots x-slots y-slots error-slots))))
 
 
 
 
 
-(define-data-class 1d-data x y s
-    ((source) 0)
-    (object (source t)))
+
+

@@ -16,6 +16,10 @@
    #:y
    #:no-data-points
    #:sigma
-   #:f-of-x)
+   #:f-of-x
+   #:get-all-data-slots
+   #:get-independent-parameters
+   #:get-dependent-parameters
+   #:get-error-parameters)
   (:nicknames ba))
 

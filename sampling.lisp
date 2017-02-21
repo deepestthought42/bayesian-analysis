@@ -5,10 +5,18 @@
 
 
 (defun gaussian-lambda (rng sigma object slot-name)
-  #'(lambda ()
-      (setf (slot-value object slot-name)
-	    (+ (slot-value object slot-name)
-	       (gsl-cffi:random-gaussian rng sigma)))))
+  (if *debug-function*
+      #'(lambda ()
+	  (let ((old-value (slot-value object slot-name)))
+	    (setf (slot-value object slot-name)
+		  (+ (slot-value object slot-name)
+		     (gsl-cffi:random-gaussian rng sigma)))
+	    (debug-out :sample "Gaussian draw for: ~a, old: ~,10d, new: ~,10d"
+		       slot-name old-value (slot-value object slot-name))))
+      #'(lambda ()
+	  (setf (slot-value object slot-name)
+		(+ (slot-value object slot-name)
+		   (gsl-cffi:random-gaussian rng sigma))))))
 
 
 (defparameter *sampling-types*

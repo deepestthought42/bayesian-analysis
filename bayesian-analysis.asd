@@ -10,7 +10,9 @@
 	       #:gsl-cffi)
   :serial t
   :components ((:file "package")
+	       (:file "init")
 	       (:file "algorithm")
+	       (:file "data")
 	       (:file "priors")
 	       (:file "sampling")
 	       (:file "likelihood")

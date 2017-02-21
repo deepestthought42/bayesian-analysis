@@ -3,7 +3,7 @@
 
 (defclass algorithm () ())
 
-(defclass mcmc-algorithm (alogrithm)
+(defclass mcmc-algorithm (algorithm)
   ((no-iterations :accessor no-iterations
 		  :initarg :no-iterations :initform 1000)))
 
@@ -22,7 +22,7 @@
 			  :initform (error "Must initialize iteration-accumulator."))))
 
 
-(defgeneric solve-for-parameters (algorithm model &key))
+(defgeneric solve-for-parameters (algorithm model data &key))
 
 
 (defclass mcmc-accumulator ()

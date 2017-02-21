@@ -19,7 +19,8 @@
    (sample-new-parameters :initarg :sample-new-parameters :accessor sample-new-parameters)
    (object-documentation :initarg :object-documentation :accessor object-documentation)
    (rng :accessor rng :initarg :rng
-	:initform (gsl-cffi:get-random-number-generator gsl-cffi::*mt19937_1999*))))
+	:initform (gsl-cffi:get-random-number-generator gsl-cffi::*mt19937_1999*))
+   (initargs :reader initargs)))
 
 
 
@@ -126,7 +127,10 @@
 	     (save-last ()
 	       (iter
 		 (for i from 0 below no-params)
+		 ;; save and restore the old params
 		 (setf (aref param-value-array i current-index)
+		       (aref param-value-array i (1- current-index))
+		       (slot-value model (aref symbol-array i))
 		       (aref param-value-array i (1- current-index)))
 		 (finally
 		  (incf current-index)
@@ -147,41 +151,56 @@
      (--acc--initialize object no-iterations)))
 
 
-(defun make-model-class (name parameters)
-  `(defclass ,name (bayesian-analysis:model)
-     (,@(mapcan #'(lambda (s) (apply #'make-slot-specifiers-for-parameter s)) parameters))))
+(defun make-model-class-and-coby-object (name parameters)
+  (let+ ((all-slot-specifiers (mapcan #'(lambda (s) (apply #'make-slot-specifiers-for-parameter s))
+				      parameters)))
+    `((defclass ,name (bayesian-analysis:model)
+	(,@all-slot-specifiers))
+      (defmethod initialize-instance :around ((object ,name) &rest initargs &key &allow-other-keys)
+	(setf (slot-value (call-next-method object) 'initargs) initargs)
+	object)
+      (defmethod copy-object ((object ,name))
+	(let* ((new-object (apply #'make-instance ',name (initargs object))))
+	  (iter:iter
+	    (for s in ',(mapcar #'first parameters))
+	    (setf (slot-value new-object s)
+		  (slot-value object s)))
+	  new-object)))))
+
+
+(defun model-function-name (model-name)
+  (alexandria:symbolicate model-name '-model-function))
+
+(defun make-model-function (model-function-name independent-parameters
+			    model-parameters body)
+  (alexandria:with-gensyms (model-object)
+    `(defun ,model-function-name (,@independent-parameters ,model-object)
+       (let-plus:let+ (((let-plus:&slots ,@model-parameters) ,model-object))
+	 (progn ,@body)))))
 
 
 
-(defun make-likelihood-initializer (model fn-param-list function-body)
-  `(defmethod bayesian-analysis:initialize-likelihood ((model ,name) (data bayesian-analysis:data))))
 
-(defmacro define-bayesian-model ((name &optional documentation) 
+(defmacro define-bayesian-model ((name data-type &optional documentation) 
 				 (&rest model-parameters)
-				 (log-likelihood)
-				 (x-data &rest more-data)
-				 &body body)
-  `(progn
-     ,(make-model-class name model-parameters)
-     ,(make-initialize-after-code name (mapcar #'first model-parameters) documentation)
-     ,(make-accumulator-method name)))
+				 (likelihood-type &key constant-likelihood-code
+						       varying-likelihood-code)
+				 ((&rest independent-parameters) &body body))
+  (let+ ((model-function-name (model-function-name name)))
+    `(progn
+       ,@(make-model-class-and-coby-object name model-parameters)
+       ,(make-initialize-after-code name (mapcar #'first model-parameters) documentation)
+       ,(make-accumulator-method name)
+       ,(make-model-function model-function-name independent-parameters
+			     (mapcar #'first model-parameters)
+			     body)
+       ,(make-likelihood-initializer name likelihood-type
+				     model-function-name 
+				     (bayesian-analysis:get-independent-parameters data-type)
+				     (bayesian-analysis:get-dependent-parameters data-type)
+				     (bayesian-analysis:get-error-parameters data-type)
+				     data-type))))
 
 
-
-
-#+nil
-(define-bayesian-model (bayesian-konig)
-    ((a :default 2 :min 1 :max 20)
-     (b :prior-type :uniform :default 2 :min 1 :max 20))
-    ((x))
-  )
-
-#+nil
-(defparameter *test-model* (make-instance 'bayesian-konig))
-
-(ba:initialize-accumulator *test-model* 1000)
-
-;(funcall (sample-new-parameters *test-model*))
-
-
+ 
 
