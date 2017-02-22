@@ -7,7 +7,8 @@
   :depends-on (#:alexandria
                #:iterate
                #:let-plus
-	       #:gsl-cffi)
+	       #:gsl-cffi
+	       #:mgl-gnuplot)
   :serial t
   :components ((:file "package")
 	       (:file "init")

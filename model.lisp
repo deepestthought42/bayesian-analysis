@@ -20,6 +20,7 @@
    (object-documentation :initarg :object-documentation :accessor object-documentation)
    (rng :accessor rng :initarg :rng
 	:initform (gsl-cffi:get-random-number-generator gsl-cffi::*mt19937_1999*))
+   (model-function :reader model-function)
    (initargs :reader initargs)))
 
 
@@ -96,11 +97,12 @@
 
 
 
-(defun make-initialize-after-code (class-name parameters documentation)
+(defun make-initialize-after-code (class-name model-function-name parameters documentation)
   `(defmethod initialize-instance :after ((object ,class-name) &key)
      (setf (slot-value object 'all-model-parameters) ',parameters
 	   (slot-value object 'model-parameters-to-marginalize)
 	   (--init--params-to-marginalize object ',parameters)
+	   (slot-value object 'model-function) #',model-function-name 
 	   (object-documentation object) ,documentation)
      (--init--priors object)
      (--init--sampling-functions object)))
@@ -189,7 +191,8 @@
   (let+ ((model-function-name (model-function-name name)))
     `(progn
        ,@(make-model-class-and-coby-object name model-parameters)
-       ,(make-initialize-after-code name (mapcar #'first model-parameters) documentation)
+       ,(make-initialize-after-code name model-function-name
+				    (mapcar #'first model-parameters) documentation)
        ,(make-accumulator-method name)
        ,(make-model-function model-function-name independent-parameters
 			     (mapcar #'first model-parameters)

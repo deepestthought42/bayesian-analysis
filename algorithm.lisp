@@ -14,6 +14,8 @@
    (no-accepted-iterations :initarg :no-accepted-iterations :accessor no-accepted-iterations 
 			   :initform 0)
    (no-iterations :initarg :no-iterations :accessor no-iterations :initform 0)
+   (data :initarg :data :accessor data 
+	 :initform (error "Must initialize data."))
    (input-model :initarg :input-model :accessor input-model 
 		:initform (error "Must initialize input-model."))
    (result-model :initarg :result-model :accessor result-model 

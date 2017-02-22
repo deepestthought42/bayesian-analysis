@@ -58,6 +58,7 @@
 					:algorithm algorithm
 					:no-accepted-iterations accepted-iterations
 					:no-iterations no-iterations
+					:data data
 					:input-model input-model
 					:result-model model
 					:iteration-accumulator accumulator)))))))
