@@ -20,6 +20,8 @@
    #:get-all-data-slots
    #:get-independent-parameters
    #:get-dependent-parameters
-   #:get-error-parameters)
+   #:get-error-parameters
+   #:update-model-with-results
+   #:parameter-result)
   (:nicknames ba))
 

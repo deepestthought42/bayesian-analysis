@@ -54,12 +54,12 @@
 	      (-> save-current-parameters)
 	      (setf nominator denominator)))
 
-	(finally (return (make-instance 'mcmc-parameter-result
-					:algorithm algorithm
-					:no-accepted-iterations accepted-iterations
-					:no-iterations no-iterations
-					:data data
-					:input-model input-model
-					:result-model model
-					:iteration-accumulator accumulator)))))))
+	(finally (return
+		   (make-instance 'mcmc-parameter-result
+				  :algorithm algorithm
+				  :no-accepted-iterations accepted-iterations
+				  :no-iterations no-iterations
+				  :data data
+				  :input-model input-model
+				  :iteration-accumulator accumulator)))))))
  

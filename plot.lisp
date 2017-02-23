@@ -7,8 +7,9 @@
 (defgeneric plot-iteration-values (result &key (params-to-plot) (start) end (every)))
 
 
-(defmethod plot-result-model ((result mcmc-parameter-result) &key (no-steps 1000))
-  (let+ (((&slots input-model result-model data) result)
+(defmethod plot-result-model ((result solved-parameters) &key (no-steps 1000))
+  (let+ (((&slots model data algorithm-result) result)
+	 ((&slots input-model) algorithm-result)
 	 (fun (model-function input-model)))
     (unless (= 1 (no-independent-parameters data)
 	       (no-dependent-parameters data) (no-error-parameters data))
@@ -31,7 +32,7 @@
 	    (iter
 	      (for x from min-x to max-x by (/ (- max-x min-x) no-steps))
 	      (collect (list x (funcall fun x input-model)) into id)
-	      (collect (list x (funcall fun x result-model)) into rd)
+	      (collect (list x (funcall fun x model)) into rd)
 	      (finally (return (values id rd))))))
       (mgl-gnuplot:plot*
        (list
@@ -59,16 +60,10 @@
 	       (collect (list i (aref parameter-array index-param i)))))
 	    (format nil "with steps title '~a'" p)))))))
 
-(defmethod plot-parameter-distribution ((result mcmc-parameter-result) parameter
-					&key (start 0) (end) (bin-width 0.1)
-					     (confidence-level 0.69))
-  (let+ (((&slots iteration-accumulator) result)
-	 ((&slots marginalized-parameters parameter-array no-iterations) iteration-accumulator)
-	 (end (if end end no-iterations))
-	 ((&values binned-data median min max max-counts)
-	  (bin-parameter-values result parameter bin-width
-				:start start :end end
-				:confidence-level confidence-level)))
+(defmethod plot-parameter-distribution ((result solved-parameters) parameter)
+  (let+ (((&slots parameter-infos) result)
+	 (param (find parameter parameter-infos :key #'name))
+	 ((&slots binned-data median confidence-min confidence-max max-counts) param))
     (labels ((cmd (fmt-str &rest args)
 	       (apply #'format t fmt-str args)
 	       (mgl-gnuplot:command (apply #'format nil fmt-str args))))
@@ -78,11 +73,10 @@
        (list
 	(mgl-gnuplot:data* (iter
 			     (for (x c) in binned-data)
-			     (if (<= min x max)
+			     (if (<= confidence-min x confidence-max)
 				 (collect (list x c))))
 			   (format nil "u 1:2 with boxes lc 7 title ''"))
-	(mgl-gnuplot:data* binned-data (format nil "u 1:2 with histeps lc 0 title '~a'" parameter))))
-)))
+	(mgl-gnuplot:data* binned-data (format nil "u 1:2 with histeps lc 0 title '~a'" parameter)))))))
 
 
 

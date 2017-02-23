@@ -18,8 +18,6 @@
 	 :initform (error "Must initialize data."))
    (input-model :initarg :input-model :accessor input-model 
 		:initform (error "Must initialize input-model."))
-   (result-model :initarg :result-model :accessor result-model 
-		 :initform (error "Must initialize result-model."))
    (iteration-accumulator :initarg :iteration-accumulator :accessor iteration-accumulator 
 			  :initform (error "Must initialize iteration-accumulator."))))
 
@@ -49,7 +47,7 @@
 
 
 (defgeneric bin-parameter-values (result parameter bin-size &key start end))
-
+(defgeneric get-parameter-results (result &key start end))
 
 (defun %calculate-confidance (array no-iterations confidance-level)
   (let+ ((sorted (sort (copy-seq array) #'> :key #'second)))
@@ -115,8 +113,63 @@
 
 
 
+(defclass solved-parameters ()
+  ((model :initarg :model :accessor model 
+	  :initform (error "Must initialize model."))
+   (parameter-infos :initarg :parameter-infos :accessor parameter-infos 
+		    :initform (error "Must initialize parameter-infos."))
+   (algorithm-result :initarg :algorithm-result :accessor algorithm-result 
+		     :initform (error "Must initialize algorithm-result."))
+   (data :initarg :data :accessor data 
+	 :initform (error "Must initialize data."))))
 
 
+(defclass parameter-result ()
+  ((name :initarg :name :accessor name 
+	 :initform (error "Must initialize name."))
+   (median :initarg :median :accessor median 
+	   :initform (error "Must initialize median."))
+   (confidence-level :initarg :confidence-level :accessor confidence-level 
+		     :initform (error "Must initialize confidence-level."))
+   (confidence-min :initarg :confidence-min :accessor confidence-min 
+		   :initform (error "Must initialize confidence-min."))
+   (confidence-max :initarg :confidence-max :accessor confidence-max 
+		   :initform (error "Must initialize confidence-max."))
+   (max-counts :initarg :max-counts :accessor max-counts 
+	       :initform (error "Must initialize max-counts."))
+   (binned-data :initarg :binned-data :accessor binned-data 
+		:initform (error "Must initialize binned-data."))
+   (bin-width :initarg :bin-width :accessor bin-width 
+	      :initform (error "Must initialize bin-width."))))
+
+
+(defmethod get-parameter-results ((result mcmc-parameter-result) &key (start 0) end (confidence-level 0.69))
+  (let+ (((&slots iteration-accumulator input-model no-iterations data) result)
+	 ((&slots model-parameters-to-marginalize) input-model)
+	 (model (copy-object input-model))
+	 (end (if end end no-iterations))
+	 (param-infos (iter
+			(for p in model-parameters-to-marginalize)
+			(for bin-width = (slot-value model (w/suffix-slot-category :bin-width p)))
+			(let+ (((&values binned-data median min max max-counts)
+				(bin-parameter-values result p bin-width
+						      :start start :end end
+						      :confidence-level confidence-level)))
+			  (setf (slot-value model p) median)
+			  (collect (make-instance 'parameter-result
+						  :name p
+						  :median median
+						  :confidence-level confidence-level
+						  :confidence-min min
+						  :confidence-max max
+						  :max-counts max-counts
+						  :binned-data binned-data
+						  :bin-width bin-width))))))
+    (make-instance 'solved-parameters
+		   :algorithm-result result
+		   :parameter-infos param-infos
+		   :data data
+		   :model model)))
 
 
 

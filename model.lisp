@@ -45,7 +45,9 @@
     (:min -min)
     (:max -max)
     (:sample-sigma -sample-sigma)
-    (:sample-type -sample-type)))
+    (:sample-type -sample-type)
+    (:bin-width -bin-width)
+    (:description -description)))
 
 
 
@@ -63,6 +65,8 @@
 						     (sample-sigma 1d0)
 						     (sample-type :gaussian)
 						     (marginalize t)
+						     (bin-width 0.1d0)
+						     (description "")
 						     (prior-type :jeffreys))
   (labels ((make-default-param (name default-value &optional coerce)
 	     (if (not default-value)
@@ -85,7 +89,9 @@
       ,(standard-slot :min min t)
       ,(standard-slot :max max t)
       ,(standard-slot :sample-type sample-type)
-      ,(standard-slot :sample-sigma sample-sigma t))))
+      ,(standard-slot :sample-sigma sample-sigma t)
+      ,(standard-slot :bin-width bin-width t)
+      ,(standard-slot :description description))))
 
 
 
@@ -98,12 +104,17 @@
 
 
 (defun make-initialize-after-code (class-name model-function-name parameters documentation)
-  `(defmethod initialize-instance :after ((object ,class-name) &key)
+  `(defmethod initialize-instance :after ((object ,class-name) &rest initargs &key &allow-other-keys)
      (setf (slot-value object 'all-model-parameters) ',parameters
 	   (slot-value object 'model-parameters-to-marginalize)
 	   (--init--params-to-marginalize object ',parameters)
+	   (slot-value object 'initargs) initargs
 	   (slot-value object 'model-function) #',model-function-name 
 	   (object-documentation object) ,documentation)
+     (iter:iter
+       (iter:for p in ',parameters)
+       (setf (slot-value object p) (coerce (slot-value object p)
+					   'double-float)))
      (--init--priors object)
      (--init--sampling-functions object)))
 
@@ -158,9 +169,6 @@
 				      parameters)))
     `((defclass ,name (bayesian-analysis:model)
 	(,@all-slot-specifiers))
-      (defmethod initialize-instance :around ((object ,name) &rest initargs &key &allow-other-keys)
-	(setf (slot-value (call-next-method object) 'initargs) initargs)
-	object)
       (defmethod copy-object ((object ,name))
 	(let* ((new-object (apply #'make-instance ',name (initargs object))))
 	  (iter:iter
