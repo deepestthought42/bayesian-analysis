@@ -38,13 +38,29 @@
 	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
   (mgl-gnuplot:with-session ()
     (cmd "reset")
-    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
     (plot-iteration-values
      (solve-for-parameters (make-instance 'metropolis-hastings :no-iterations 50000)
 			   (make-instance 'linear)
 			   (initialize-from-source '1d-data t))
      :every 1 :end 500) 
     (cmd "unset output")))
+
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal x11 enhanced font 'Georgia,12' dashed")
+    (plot-parameter-distribution
+     (solve-for-parameters (make-instance 'metropolis-hastings :no-iterations 500000)
+			   (make-instance 'linear)
+			   (initialize-from-source '1d-data t))
+     'b :bin-width 0.005 :start 1000) 
+    (cmd "unset output")))
+
+
+
 
 
 
