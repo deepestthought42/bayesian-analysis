@@ -1,10 +1,51 @@
 (in-package #:bayesian-analysis)
 
 
-
+;;; api
 
 (defgeneric plot-result-model (result &key))
 (defgeneric plot-iteration-values (result &key (params-to-plot) (start) end (every)))
+(defgeneric plot-data (data &key))
+
+
+;;; implementation
+
+(defun %get-mgl-data-for-data-1d-w/errors (data)
+  (let+ (((&slots independent-parameters dependent-parameters
+		  error-parameters) data)
+	 (xs (slot-value data (first independent-parameters)))
+	 (ys (slot-value data (first dependent-parameters)))
+	 (ss (slot-value data (first error-parameters))))
+    (iter
+      (for x in-sequence xs)
+      (for y in-sequence ys)
+      (for s in-sequence ss)
+      (collect (list x y s) into pd)
+      (minimize x into min-x)
+      (maximize x into max-x)
+      (finally (return (values pd min-x max-x))))))
+
+
+
+(defmethod plot-data ((data data) &key (style "lc 7 pt 7 lw 1.5 pw 1.5")
+				       title xlabel ylabel)
+  (unless (= 1 (no-independent-parameters data)
+	     (no-dependent-parameters data) (no-error-parameters data))
+    (error "plotting of given data not supported."))
+  (labels ((cmd (fmt-str &rest args)
+	       (apply #'format t fmt-str args)
+	     (mgl-gnuplot:command (apply #'format nil fmt-str args)))
+	   (iff (obj else) (if obj obj else)))
+    (let+ (((x) (iff xlabel (independent-parameters data)))
+	   ((y) (iff ylabel (dependent-parameters data)))
+	   (title (iff title (format nil "~a_i[~a_i]" y x)))
+	   ((&values plot-data) (%get-mgl-data-for-data-1d-w/errors data))
+	   (options (format nil "using 1:2 with errorbars title '~a' ~a" title style)))
+      (cmd "set xlabel '~a'" x)
+      (cmd "set ylabel '~a'" y)
+      (mgl-gnuplot:plot*
+       (list
+	(mgl-gnuplot:data* plot-data options))))))
 
 
 (defmethod plot-result-model ((result solved-parameters) &key (no-steps 1000))
@@ -14,20 +55,7 @@
     (unless (= 1 (no-independent-parameters data)
 	       (no-dependent-parameters data) (no-error-parameters data))
       (error "plotting of given data not supported."))
-    (let+ (((&slots independent-parameters dependent-parameters
-		    error-parameters) data)
-	   (xs (slot-value data (first independent-parameters)))
-	   (ys (slot-value data (first dependent-parameters)))
-	   (ss (slot-value data (first error-parameters)))
-	   ((&values plot-data min-x max-x)
-	    (iter
-	      (for x in-sequence xs)
-	      (for y in-sequence ys)
-	      (for s in-sequence ss)
-	      (collect (list x y s) into pd)
-	      (minimize x into min-x)
-	      (maximize x into max-x)
-	      (finally (return (values pd min-x max-x)))))
+    (let+ (((&values plot-data min-x max-x) (%get-mgl-data-for-data-1d-w/errors data))
 	   ((&values model-input-data model-results-data)
 	    (iter
 	      (for x from min-x to max-x by (/ (- max-x min-x) no-steps))

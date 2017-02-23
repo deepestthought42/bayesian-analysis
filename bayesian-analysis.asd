@@ -19,5 +19,6 @@
 	       (:file "likelihood")
                (:file "model")
 	       (:file "metropolis-hastings")
-	       (:file "bayesian-analysis")))
+	       (:file "bayesian-analysis")
+	       (:file "plot")))
 

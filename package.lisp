@@ -22,6 +22,9 @@
    #:get-dependent-parameters
    #:get-error-parameters
    #:update-model-with-results
-   #:parameter-result)
+   #:parameter-result
+   #:plot-result-model
+   #:plot-iteration-values
+   #:plot-data)
   (:nicknames ba))
 

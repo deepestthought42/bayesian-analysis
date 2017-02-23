@@ -57,8 +57,9 @@
       (solve-for-parameters (make-instance 'metropolis-hastings :no-iterations 500000)
 			    (make-instance 'quadratic :b-bin-width 0.01 :a-bin-width 0.01 :c-bin-width 0.004)
 			    (initialize-from-source '1d-data t))
+      :confidence-level 0.92
       :start 200)
-     'c) 
+     'c ) 
     (cmd "unset output")))
 
 
@@ -67,13 +68,21 @@
 	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
   (mgl-gnuplot:with-session ()
     (cmd "reset")
-    (cmd "set terminal wxt enhanced font 'Georgia,12' dashed")
+    (cmd "set terminal x11 enhanced font 'Georgia,12' dashed")
     (plot-result-model
      (get-parameter-results
       (solve-for-parameters (make-instance 'metropolis-hastings :no-iterations 100000)
-			    (make-instance 'linear :b-bin-width 0.01 :a-bin-width 0.01)
+			    (make-instance 'quadratic :b-bin-width 0.001 :a-bin-width 0.001)
 			    (initialize-from-source '1d-data t))
       :start 200)) 
     (cmd "unset output")))
 
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+    (plot-data (initialize-from-source '1d-data t))
+    (cmd "unset output")))
 
