@@ -2,7 +2,8 @@
 ** DONE introduce code to block writing slots
 min, max, prior, etc should be immutable
 ** DONE method for plotting data
-** TODO get model comparison working
+** DONE look at metropolis hastings and the signs 
+** WAITING get model comparison working
 ** TODO make use of provided priors
 ** TODO introduce other types of error assumptions
 ** TODO make konig work

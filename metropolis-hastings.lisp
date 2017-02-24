@@ -33,7 +33,7 @@
 		     varying/log-of-priors))
       (iter
 	(with accepted-iterations = 0)
-	(with nominator = (* (-> varying/log-of-priors)
+	(with denominator = (* (-> varying/log-of-priors)
 			     (-> varying/log-of-likelihood)))
 
 	(for i from 0 below no-iterations)
@@ -42,17 +42,17 @@
 	(when (not (-> priors-in-range))
 	  (-> save-last-parameters)
 	  (next-iteration))
-	(for denominator = (* (-> varying/log-of-priors)
-			      (-> varying/log-of-likelihood)))
+	(for nominator = (* (-> varying/log-of-priors)
+			    (-> varying/log-of-likelihood)))
 	
-	(for log-mh-ratio = (- (- nominator denominator)))
+	(for log-mh-ratio = (- nominator denominator))
 	(for log-u = (log (aref random-numbers i)))
 	(if (> log-u log-mh-ratio)
 	    (-> save-last-parameters)
 	    (progn
 	      (incf accepted-iterations)
 	      (-> save-current-parameters)
-	      (setf nominator denominator)))
+	      (setf denominator nominator)))
 
 	(finally (return
 		   (make-instance 'mcmc-parameter-result
