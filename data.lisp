@@ -1,5 +1,6 @@
 (in-package #:bayesian-analysis)
 
+;;; classes
 
 (defclass data ()
   ((no-data-points :initarg :no-data-points :accessor no-data-points)
@@ -8,64 +9,167 @@
    (error-parameters :accessor error-parameters :initarg :error-parameters )
    (no-independent-parameters :accessor no-independent-parameters :initarg :no-independent-parameters)
    (no-dependent-parameters :accessor no-dependent-parameters :initarg :no-dependent-parameters)
-   (no-error-parameters :accessor no-error-parameters :initarg :no-error-parameters )))
+   (descriptions :accessor descriptions :initarg :descriptions :initform '())
+   (no-error-parameters :accessor no-error-parameters :initarg :no-error-parameters ))
+  (:documentation "Super class for implementing types that represent
+  data sets. DATA types' slots are used for keeping information about
+  the subclass."))
+
+
+(defclass parameter-description ()
+  ((name :initarg :name :accessor name 
+	 :initform (error "Must initialize name."))
+   (textual-descriptoin :accessor textual-descriptoin :initarg :textual-descriptoin
+			:initform "")))
+
+;;; conditions
+
+(define-condition incongruent-data (simple-condition) ())
+(define-condition wrong-data-type (simple-condition) ())
+(define-condition unknown-parameter (simple-condition) ())
+
+(define-condition wrong-number-of-arguments (program-error)
+  ((explanation :accessor explanation :initarg :explanation :initform "")
+   (offending-symbol :accessor offending-symbol :initarg :offending-symbol :initform nil)))
+
+
+;;; api
+
+(defgeneric initialize-from-source (data-type source)
+  (:documentation "Initialize an object of type DATA-TYPE form soure SOURCE."))
+
+(defgeneric get-all-data-slots (data-type)
+  (:documentation "Get all slots known for type DATA-TYPE."))
+
+(defgeneric get-independent-parameters (type)
+  (:documentation "Get all independent parameters for type DATA-TYPE."))
+
+(defgeneric get-dependent-parameters (type)
+  (:documentation "Get all dependent parameters for type DATA-TYPE."))
+
+(defgeneric get-error-parameters (type)
+  (:documentation "Get all error parameters for type DATA-TYPE."))
+
+(defgeneric get-parameter-description-text (object parameter)
+  (:documentation "Get the textual description of the parameter
+  PARAMETER for data object OBJECT.")
+  (:method ((object data) parameter)
+    (alexandria:if-let (desc (find parameter (descriptions object) :key #'name))
+      (textual-descriptoin desc)
+      (error 'unknown-parameter :format-control "Unknown parameter: ~a"
+				:format-arguments (list parameter)))))
+
+
 
 
 
 (defun make-all-slots (independent-parameters dependent-parameters error-parameters)
+  "Internal; create slot names and description for no, symbols, or
+lists given to defmacro form."
   (labels ((mk-slot-names (symbol no-params-or-params)
 	     (cond
-	       ((numberp no-params-or-params)
+	       ((and (integerp no-params-or-params) (>= no-params-or-params 0))
 		(iter
 		  (for i from 1 to no-params-or-params)
-		  (collect (alexandria:symbolicate symbol (format nil "~D" i)))))
-	       ((listp no-params-or-params) no-params-or-params)
-	       ((symbolp no-params-or-params) (list no-params-or-params))
+		  (collect (alexandria:symbolicate symbol (format nil "~D" i)) into name)
+		  (collect "" into docs)
+		  (finally (return (values name docs)))))
+	       ((and (listp no-params-or-params)
+		     (= 2 (length no-params-or-params))
+		     (stringp (second no-params-or-params)))
+		(values (list (first no-params-or-params))
+			(list (second no-params-or-params))))
+	       ((listp no-params-or-params)
+		(iter
+		  (for p in no-params-or-params)
+		  (for name = (if (listp p) (first p) p))
+		  (for doc = (if (and (listp p)
+				      (stringp (second p)))
+				 (second p)
+				 ""))
+		  (collect name into names)
+		  (collect doc into docs)
+		  (finally (return (values names docs)))))
+	       ((symbolp no-params-or-params)
+		(values (list no-params-or-params) (list "")))
 	       (t (error "Parameter value must either be a number, symbol or list.")))))
-    (let+ ((x-slots (mk-slot-names 'x- independent-parameters))
-	   (y-slots (mk-slot-names 'y- dependent-parameters))
-	   (error-slots (mk-slot-names 's- error-parameters))
-	   (all-slots (append x-slots y-slots error-slots)))
-      (values x-slots y-slots error-slots all-slots))))
+    (let+ (((&values x-slots x-docs) (mk-slot-names 'x- independent-parameters))
+	   ((&values y-slots y-docs) (mk-slot-names 'y- dependent-parameters))
+	   ((&values error-slots error-docs) (mk-slot-names 's- error-parameters))
+	   (all-slots (append x-slots y-slots error-slots))
+	   (all-docs (append x-docs y-docs error-docs)))
+      (values x-slots y-slots error-slots all-slots all-docs))))
 
 
 (defun make-class-def (name all-slots)
+  "Internal; create class definition based on parameters given to
+defmacro form."
   `(defclass ,name (bayesian-analysis:data)
      ,(iter
 	(for s in all-slots)
 	(for key-x = (alexandria:make-keyword s))
 	(collect `(,s :initarg ,key-x :accessor ,s)))))
 
+
+
+(defun --init--check-congruent-data (object slot-names)
+  "Upon initialization of a data object, this method will check if all
+of the parameters satisfy the following conditions:
+
+- all parameters must be represented by simple arrays with elements of
+  type double-float.
+
+- all parameter arrays must be of the same size."
+  (let+ ((arrays (mapcar #'(lambda (s) (slot-value object s)) slot-names)))
+    (map nil
+	 #'(lambda (a s)
+	     (if (not (and (typep a 'simple-array)
+			   (eql 'double-float (array-element-type a))))
+		 (error 'wrong-data-type
+			:format-control
+			"All parameters must be given as SIMPLE-ARRAYs
+of type DOUBLE-FLOAT. Parameter ~a is of type: ~a"
+			:format-arguments (list s (type-of a)))))
+	 arrays slot-names))
+  (setf (slot-value object 'no-data-points)
+	(length (slot-value object (first slot-names)))))
+
 (defun make-init-from-source-method (name init-from-source-body object-var-name
 				     source-type source-var-name
-				     source-var-name-f-data-points get-no-data-points-body
-				     x-slots y-slots error-slots all-slots)
+				     all-slots)
+  "Internal; create initialize-from-source defmethod for datatype
+based on information given in defmacro form."
   (alexandria:with-gensyms (type)
     `(defmethod bayesian-analysis:initialize-from-source ((,type (eql ',name))
 							  (,source-var-name ,source-type))
        (let-plus:let+ ((,object-var-name (make-instance ',name))
-		       ((let-plus:&slots ,@all-slots
-					 no-independent-parameters independent-parameters
-					 no-dependent-parameters dependent-parameters
-					 no-error-parameters error-parameters
-					 no-data-points) ,object-var-name))
-	 (setf no-independent-parameters ,(length x-slots) no-dependent-parameters ,(length y-slots)
-	       no-error-parameters ,(length error-slots) independent-parameters ',x-slots
-	       dependent-parameters ',y-slots error-parameters ',error-slots
-	       no-data-points
-	       (funcall #'(lambda (,source-var-name-f-data-points)
-			    (declare (ignorable ,source-var-name-f-data-points))
-			    (progn
-			      ,@get-no-data-points-body))
-			,source-var-name))
+		       ((let-plus:&slots ,@all-slots) ,object-var-name))
 	 (progn
 	   ,@init-from-source-body)
-	 (if (not (apply #'= (mapcar #'length (list ,@all-slots))))
-	     (error "All data arrays need to be of the same size!"))
-	 (setf no-data-points (length ,(first all-slots)))
+	 (--init--check-congruent-data ,object-var-name ',all-slots)
 	 ,object-var-name))))
 
+
+(defun make-init-instance-method (name all-slots all-docs x-slots y-slots error-slots)
+  "Internal; create initialize-instance defmethod for data based on
+information given in defmacro form."
+  `(defmethod initialize-instance :after ((object ,name) &key)
+     (let-plus:let+ (((&slots no-independent-parameters independent-parameters
+			      no-dependent-parameters dependent-parameters
+			      no-error-parameters error-parameters
+			      descriptions
+			      ,@all-slots) object))
+       (setf no-independent-parameters ,(length x-slots) no-dependent-parameters ,(length y-slots)
+	     no-error-parameters ,(length error-slots) independent-parameters ',x-slots
+	     dependent-parameters ',y-slots error-parameters ',error-slots
+	     descriptions (mapcar #'(lambda (n d) (make-instance 'parameter-description
+							    :name n
+							    :textual-descriptoin d))
+				  ',all-slots ',all-docs)))))
+
 (defun make-get-parameter-names-method (type-name all independent dependent error)
+  "Internal; create accesor defmethods for information about the
+represented data type."
   (alexandria:with-gensyms (type)
     `((defmethod bayesian-analysis:get-all-data-slots ((,type (eql ',type-name)))
 	',all)
@@ -76,38 +180,64 @@
       (defmethod bayesian-analysis:get-error-parameters ((,type (eql ',type-name)))
 	',error))))
 
-(defgeneric initialize-from-source (data-object source))
-(defgeneric get-all-data-slots (type))
-(defgeneric get-independent-parameters (type))
-(defgeneric get-dependent-parameters (type))
-(defgeneric get-error-parameters (type))
-
-(defun input-checks (y-slots error-slots)
+(defun macro-input-checks (y-slots error-slots)
+  "Internal; check that the number of error-slots match the number of
+dependent data slots."
   (cond
-    ((if (and error-slots (not (= (length y-slots) (length error-slots))))
-	 (error "Need as many error parameters as dependent parameters.")))))
+    ((and error-slots (not (= (length y-slots) (length error-slots))))
+     (error 'wrong-number-of-arguments
+	    :explanation "Need as many error parameters as dependent parameters."))))
+
+
+
 
 (defmacro define-data-class (name
 			     independent-parameters
 			     dependent-parameters
 			     error-parameters
-			     ((source-var-name-f-data-points) &body get-no-data-points-body)
 			     (object-var-name (source-var-name source-type))
 			     &body init-from-source-body)
-  (let+ (((&values x-slots y-slots error-slots all-slots)
+  "Macro to define a data type to be used for likelihood calculations.
+NAME is the type of the data class.  INDEPENDENT-PARAMETERS,
+DEPENDENT-PARAMETERS, and ERROR-PARAMETERS can be given independently
+as:
+
+- a positive integer I, in which case the class slots representing
+  independent, dependent, and/or error parameters respectively will be
+  labeled X-1 .. X-I, Y-1 .. Y-I, S-1 .. S-I
+
+- a single symbol that will be used for independent, dependent, and/or
+  error parameters 
+
+- a list containing a single symbol and a string: {DATUM,
+  DESCRIPTION}, in which case DATUM will be used to name the parameter
+  and DESCRIPTION.
+
+The number of error parameters has to match the number of dependent
+parameters. The descriptions, if given, will be stored and are
+accessible at run-time.
+
+Using parameters OBJECT-VAR-NAME, SOURCE-VAR-NAME, and SOURCE-TYPE,
+the method bayesian-analysis:initialize-from-source will be
+implemented using code given in INIT-FROM-SOURCE-BODY. All parameter
+slots will be visible (as per with-slots) to the forms
+INIT-FROM-SOURCE-BODY in addition to the object initialized which will
+be bound to the variable named OBJECT-VAR-NAME. The method will be
+specialized on (eql 'NAME) and an object of type SOURCE-TYPE, given to
+the forms in INIT-FROM-SOURCE-BODY as method parameter
+SOURCE-VAR-NAME.  INIT-FROM-SOURCE-BODY is expected to fill all
+parameters with SIMPLE-ARRAYs of type DOUBLE-FLOAT (this is checked
+automatically after INIT-FROM-SOURCE-BODY has been executed).
+"
+  (let+ (((&values x-slots y-slots error-slots all-slots all-descriptions)
 	  (make-all-slots independent-parameters dependent-parameters error-parameters)))
-    (input-checks y-slots error-slots)
+    (macro-input-checks y-slots error-slots)
     `(progn
        ,(make-class-def name all-slots)
+       ,(make-init-instance-method name all-slots all-descriptions x-slots y-slots error-slots)
        ,(make-init-from-source-method name init-from-source-body object-var-name
-				      source-type source-var-name
-				      source-var-name-f-data-points get-no-data-points-body
-				      x-slots y-slots error-slots all-slots)
+				      source-type source-var-name all-slots)
        ,@(make-get-parameter-names-method name all-slots x-slots y-slots error-slots))))
-
-
-
-
 
 
 

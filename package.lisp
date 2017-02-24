@@ -26,6 +26,11 @@
    #:plot-result-model
    #:plot-iteration-values
    #:plot-data
-   #:calculate-odds-ratio)
+   #:calculate-odds-ratio
+   #:incongruent-data
+   #:wrong-data-type
+   #:wrong-number-of-arguments
+   #:get-parameter-description-text
+   #:unknown-parameter)
   (:nicknames ba))
 

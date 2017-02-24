@@ -4,7 +4,11 @@ min, max, prior, etc should be immutable
 ** DONE method for plotting data
 ** DONE look at metropolis hastings and the signs 
 ** WAITING get model comparison working
+** TODO testing
+- [ ] model comparison
+- [ ] fits
 ** TODO make use of provided priors
 ** TODO introduce other types of error assumptions
 ** TODO make konig work
 ** TODO plotting methods stuff diff. than xys
+** STARTED documentation

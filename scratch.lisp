@@ -4,14 +4,17 @@
 
 
 
-
-(define-data-class 1d-data x y err
-    ((source) 0)
+(define-data-class 1d-data (x "x") y err
     (object (source t))
-  (setf x (make-array 4 :initial-contents '(-1d0 0d0 1d0 2d0))
-	y (make-array 4 :initial-contents '(2.99d0 3.1d0 3.1d0 2.99d0))
-	err (make-array 4 :initial-contents '(0.1d0 0.1d0 0.2d0 0.1d0))))
+  (setf x (make-array 4 :initial-contents '(-1d0 0d0 1d0 2d0)
+			:element-type 'double-float)
+	y (make-array 4 :initial-contents '(2.99d0 3.1d0 3.1d0 2.99d0)
+			:element-type 'double-float)
+	err (make-array 4 :initial-contents '(0.1d0 0.1d0 0.2d0 0.1d0)
+			  :element-type 'double-float)))
 
+
+;(initialize-from-source '1d-data t)
 
 
 
