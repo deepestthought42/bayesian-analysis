@@ -1,7 +1,7 @@
 * TODOs
 ** DONE introduce code to block writing slots
 min, max, prior, etc should be immutable
-** TODO method for plotting data
+** DONE method for plotting data
 ** TODO get model comparison working
 ** TODO make use of provided priors
 ** TODO introduce other types of error assumptions

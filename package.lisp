@@ -25,6 +25,7 @@
    #:parameter-result
    #:plot-result-model
    #:plot-iteration-values
-   #:plot-data)
+   #:plot-data
+   #:calculate-odds-ratio)
   (:nicknames ba))
 

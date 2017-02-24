@@ -17,15 +17,15 @@
 
 
 (define-bayesian-model (quadratic 1d-data)
-    ((a :default 2 :min -10 :max 10 :prior-type :uniform :sample-sigma 0.1d0)
-     (b :prior-type :uniform :default 2 :min -10 :max 10 :sample-sigma 0.1d0)
-     (c :prior-type :uniform :default 2 :min -10 :max 10 :sample-sigma 0.1d0))
+    ((a :default 0 :min -1 :max 1 :prior-type :uniform :sample-sigma 0.1d0)
+     (b :prior-type :uniform :default 0 :min -1 :max 1 :sample-sigma 0.1d0)
+     (c :prior-type :uniform :default 2 :min 2 :max 4 :sample-sigma 0.1d0))
     (:d_i=f_i+gaussian_error_i)
     ((x) (+ (* a x) (* b x x) c)))
 
 (define-bayesian-model (linear 1d-data)
-    ((a :default 1 :min -10 :max 10 :prior-type :uniform :sample-sigma 0.1d0)
-     (b :prior-type :uniform :default 2 :min -10 :max 10 :sample-sigma 0.1d0))
+    ((a :default 1 :min -1 :max 1 :prior-type :uniform :sample-sigma 0.1d0)
+     (b :prior-type :uniform :default 2 :min 2 :max 4 :sample-sigma 0.1d0))
     (:d_i=f_i+gaussian_error_i)
     ((x)
       (+ (* a x) b)))
@@ -68,7 +68,7 @@
 	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
   (mgl-gnuplot:with-session ()
     (cmd "reset")
-    (cmd "set terminal x11 enhanced font 'Georgia,12' dashed")
+    (cmd "set terminal wxt enhanced font 'Georgia,12' dashed")
     (plot-result-model
      (get-parameter-results
       (solve-for-parameters (make-instance 'metropolis-hastings :no-iterations 100000)
@@ -86,3 +86,27 @@
     (plot-data (initialize-from-source '1d-data t))
     (cmd "unset output")))
 
+
+
+
+(let+ ((r1 (get-parameter-results
+	    (solve-for-parameters
+	     (make-instance 'metropolis-hastings :no-iterations 100000)
+	     (make-instance 'linear :b-bin-width 0.005 :a-bin-width 0.005)
+	     (initialize-from-source '1d-data t)) :start 200))
+       (r2 (get-parameter-results
+	    (solve-for-parameters
+	     (make-instance 'metropolis-hastings :no-iterations 100000)
+	     (make-instance 'quadratic :b-bin-width 0.005 :a-bin-width 0.005)
+	     (initialize-from-source '1d-data t)) :start 200))
+       (m1 (model r1))
+       (m2 (model r2)))
+;  (incf (a m1) 0.01)
+  (labels ((cmd (fmt-str &rest args)
+	     (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+    (mgl-gnuplot:with-session ()
+      (cmd "reset")
+      (cmd "set terminal wxt enhanced font 'Georgia,12'")
+      (plot-result-model r2) 
+      (cmd "unset output")))
+  (calculate-odds-ratio-1/2 m1 m2 (initialize-from-source '1d-data t)))

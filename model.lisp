@@ -16,6 +16,8 @@
 			  :initform (constantly 0d0))
    (priors-in-range :accessor priors-in-range :initarg :priors-in-range
 		    :initform (constantly nil))
+   (log-of-all-priors :accessor log-of-all-priors :initarg :log-of-all-priors
+		      :initform (constantly 0d0))
    (sample-new-parameters :initarg :sample-new-parameters :accessor sample-new-parameters)
    (object-documentation :initarg :object-documentation :accessor object-documentation)
    (rng :accessor rng :initarg :rng
@@ -103,14 +105,15 @@
 
 
 
-(defun make-initialize-after-code (class-name model-function-name parameters documentation)
+(defun make-initialize-after-code (class-name model-function-name parameters documentation model-prior-code)
   `(defmethod initialize-instance :after ((object ,class-name) &rest initargs &key &allow-other-keys)
-     (setf (slot-value object 'all-model-parameters) ',parameters
-	   (slot-value object 'model-parameters-to-marginalize)
-	   (--init--params-to-marginalize object ',parameters)
-	   (slot-value object 'initargs) initargs
-	   (slot-value object 'model-function) #',model-function-name 
-	   (object-documentation object) ,documentation)
+     (labels ((l-model-prior () ,(if model-prior-code model-prior-code '1d0)))
+       (setf (slot-value object 'all-model-parameters) ',parameters
+	     (slot-value object 'model-parameters-to-marginalize) (--init--params-to-marginalize object ',parameters)
+	     (slot-value object 'model-prior) #'l-model-prior
+	     (slot-value object 'initargs) initargs
+	     (slot-value object 'model-function) #',model-function-name 
+	     (object-documentation object) ,documentation))
      (iter:iter
        (iter:for p in ',parameters)
        (setf (slot-value object p) (coerce (slot-value object p)
@@ -191,16 +194,17 @@
 
 
 
-(defmacro define-bayesian-model ((name data-type &optional documentation) 
+(defmacro define-bayesian-model ((name data-type &key model-prior-code documentation) 
 				 (&rest model-parameters)
-				 (likelihood-type &key constant-likelihood-code
-						       varying-likelihood-code)
+				 (likelihood-type &key constant-likelihood-code varying-likelihood-code)
 				 ((&rest independent-parameters) &body body))
   (let+ ((model-function-name (model-function-name name)))
     `(progn
        ,@(make-model-class-and-coby-object name model-parameters)
        ,(make-initialize-after-code name model-function-name
-				    (mapcar #'first model-parameters) documentation)
+				    (mapcar #'first model-parameters)
+				    documentation
+				    model-prior-code)
        ,(make-accumulator-method name)
        ,(make-model-function model-function-name independent-parameters
 			     (mapcar #'first model-parameters)

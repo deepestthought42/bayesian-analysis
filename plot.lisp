@@ -65,8 +65,8 @@
       (mgl-gnuplot:plot*
        (list
 	(mgl-gnuplot:data* plot-data "with errorbars title ''")
-	(mgl-gnuplot:data* model-input-data "with lines title 'input model'")
-	(mgl-gnuplot:data* model-results-data "with lines title 'result model'"))))))
+	(mgl-gnuplot:data* model-input-data "with lines lt 3 lw 0.3 lc 0 title 'input model'")
+	(mgl-gnuplot:data* model-results-data "with lines lw 1.5 lc 7 title 'result model'"))))))
 
 
 (defmethod plot-iteration-values ((result mcmc-parameter-result)

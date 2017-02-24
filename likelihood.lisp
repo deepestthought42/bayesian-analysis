@@ -18,6 +18,32 @@
 (defparameter *likelihood-types*
   '((:d_i=f_i+gaussian_error_i)))
 
+
+(defun make-f_i+gaussian-error_i-likelihood (model-function-name model-object-name
+					     data-independent-parameters
+					     data-dependent-parameters
+					     data-error-parameters
+					     data-object-name)
+  (let+ ((all-data-parameters (append data-independent-parameters
+				      data-dependent-parameters
+				      data-error-parameters)))
+
+    (alexandria:with-gensyms (f_i Q fun N)
+      (values
+       `(labels ((,fun (,@all-data-parameters)
+		   (let* ((,f_i (,model-function-name ,@data-independent-parameters
+						      ,model-object-name))
+			  (,Q (- ,@data-dependent-parameters ,f_i)))
+		     (expt (/ ,Q ,@data-error-parameters) 2))))
+	  (let-plus:let+ (((let-plus:&slots ,@all-data-parameters) ,data-object-name)
+			  (d_i (map 'simple-vector #',fun ,@all-data-parameters)))
+	    (- (reduce #'+ d_i))))
+       `(let-plus:let+ (((let-plus:&slots ,@data-error-parameters) ,data-object-name)
+			(,N (coerce (length ,@data-error-parameters) 'double-float)))
+	  (log (/ 1 (* (expt (* 2 pi) (/ ,N 2))
+		       (reduce #'* ,@data-error-parameters :initial-value 1d0)))))))))
+
+
 (defun make-likelihood-codes (likelihood-type 
 			      model-function-name model-object-name
 			      data-independent-parameters
@@ -29,22 +55,11 @@
      (if (not (= 1 (length data-dependent-parameters) (length data-error-parameters)))
 	 (error "For a simple d_i = f_i + e_i, only one error
 	 parameter and one dependent parameter is supported."))
-     (let+ ((all-data-parameters (append data-independent-parameters
-					 data-dependent-parameters
-					 data-error-parameters)))
-       (values
-	(alexandria:with-gensyms (f_i Q fun)
-	  `(labels ((,fun (,@all-data-parameters)
-		      (let* ((,f_i (,model-function-name ,@data-independent-parameters
-							 ,model-object-name))
-			     (,Q (- ,@data-dependent-parameters ,f_i)))
-			(expt (/ ,Q ,@data-error-parameters) 2))))
-	     (let-plus:let+ (((let-plus:&slots ,@all-data-parameters) ,data-object-name)
-			     (d_i (map 'simple-vector #',fun ,@all-data-parameters)))
-	       (reduce #'+ d_i))))
-	`(progn
-	   (warn "constant likelihood not implemented correctly.")
-	   (constantly 1d0)))))))
+     (make-f_i+gaussian-error_i-likelihood model-function-name model-object-name
+					   data-independent-parameters
+					   data-dependent-parameters
+					   data-error-parameters
+					   data-object-name))))
 
 
 
@@ -57,9 +72,9 @@
   (alexandria:with-gensyms (data-object-name model-object-name)
     (let+ (((&values varying constant)
 	    (make-likelihood-codes likelihood-type 
-				  model-function-name model-object-name
-				  data-independent-parameters data-dependent-parameters
-				  data-error-parameters data-object-name)))
+				   model-function-name model-object-name
+				   data-independent-parameters data-dependent-parameters
+				   data-error-parameters data-object-name)))
       `(defmethod bayesian-analysis:initialize-likelihood ((,model-object-name ,model-name)
 							   (,data-object-name ,data-type))
 	 (labels ((varying ()

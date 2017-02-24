@@ -2,6 +2,9 @@
 
 
 
+
+
+
 (defun jeffreys-log-lambda (min max object slot-name)
   (let ((ln-max/min (coerce (log (/ max min)) 'double-float)))
     #'(lambda ()
@@ -104,6 +107,25 @@
 		       object slot-name))
 	(finally (return (values varying/log-priors-array (length varying/log-priors-array))))))))
 
+
+(defun --init--all-priors-array (object parameters)
+  (labels ((sn (cat name)
+	     (w/suffix-slot-category cat name))
+	   (sv (cat name)
+	     (slot-value object (sn cat name))))
+    (let+ ((varying/log-priors-array (make-array (length parameters)
+						 :element-type '(function () t)
+						 :initial-element #'(lambda () 0d0))))
+      (iter
+	(for slot-name in-sequence parameters with-index i)
+	(setf (aref varying/log-priors-array i)
+	      (funcall (get-prior-lambda (sv :prior-type slot-name))
+		       (sv :min slot-name)
+		       (sv :max slot-name)
+		       object slot-name))
+	(finally (return (values varying/log-priors-array (length varying/log-priors-array))))))))
+
+
 (defun --init--get-log-constant-prior (object model-params-to-marginalize)
     (labels ((sn (cat name)
 	     (w/suffix-slot-category cat name))
@@ -125,11 +147,15 @@
 
 (defun --init--priors (model-object)
   (let+ (((&slots priors-in-range constant/log-of-priors varying/log-of-priors
-		  model-parameters-to-marginalize model-prior) model-object)
+		  model-parameters-to-marginalize model-prior all-model-parameters
+		  log-of-all-priors)
+	  model-object)
 	 (no-priors (length model-parameters-to-marginalize))
 	 (log-of-constant-priors (--init--get-log-constant-prior model-object model-parameters-to-marginalize))
 	 ((&values array-of-log-of-varying-priros no-varying-priors)
 	  (--init--prior-array model-object model-parameters-to-marginalize))
+	 ((&values array-of-log-of-all-priors no-of-all-priors)
+	  (--init--all-priors-array model-object all-model-parameters))
 	 (array-of-prior-in-range (--init--prior-in-range-array model-object model-parameters-to-marginalize)))
     (labels ((priors-in-range ()
     	       (iter
@@ -143,10 +169,13 @@
     		 (iter:multiply (funcall (aref array-of-log-of-varying-priros i))
 				into log-of-p)
     		 (finally (return log-of-p))))
-	     (model-prior ()
-	       (warn "model-prior Not implemented yet.")
-	       1d0))
+	     (log-of-all-priors ()
+    	       (iter
+    		 (for i from 0 below no-of-all-priors)
+    		 (iter:multiply (funcall (aref array-of-log-of-all-priors i))
+				into log-of-p)
+    		 (finally (return log-of-p)))))
       (setf priors-in-range #'priors-in-range
-	    model-prior #'model-prior
+	    log-of-all-priors #'log-of-all-priors
 	    constant/log-of-priors (constantly log-of-constant-priors)
 	    varying/log-of-priors #'log-of-varying-prior))))

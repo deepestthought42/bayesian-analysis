@@ -25,6 +25,7 @@
 (defgeneric solve-for-parameters (algorithm model data &key))
 
 
+
 (defclass mcmc-accumulator ()
   ((parameter-array :initarg :parameter-array :accessor parameter-array 
 		    :initform (error "Must initialize parameter-array."))

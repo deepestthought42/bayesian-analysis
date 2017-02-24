@@ -45,7 +45,7 @@
 	(for denominator = (* (-> varying/log-of-priors)
 			      (-> varying/log-of-likelihood)))
 	
-	(for log-mh-ratio = (- nominator denominator))
+	(for log-mh-ratio = (- (- nominator denominator)))
 	(for log-u = (log (aref random-numbers i)))
 	(if (> log-u log-mh-ratio)
 	    (-> save-last-parameters)
