@@ -40,7 +40,7 @@
 	   ((y) (iff ylabel (dependent-parameters data)))
 	   (title (iff title (format nil "~a_i[~a_i]" y x)))
 	   ((&values plot-data) (%get-mgl-data-for-data-1d-w/errors data))
-	   (options (format nil "using 1:2 with errorbars title '~a' ~a" title style)))
+	   (options (format nil "using 1:2:3 with errorbars title '~a' ~a" title style)))
       (cmd "set xlabel '~a'" x)
       (cmd "set ylabel '~a'" y)
       (mgl-gnuplot:plot*
@@ -95,13 +95,16 @@
     (labels ((cmd (fmt-str &rest args)
 	       (apply #'format t fmt-str args)
 	       (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+      (iter
+	(for d in binned-data)
+	(incf (car d) (- median)))
       (cmd "set style fill solid 0.1 noborder")
-      (cmd "set arrow from ~,10f,0 to ~,10f,~,10f nohead front lt 1 lw 2 lc 7" median median (* 1.01 max-counts))
+      (cmd "set arrow from ~,10f,0 to ~,10f,~,10f nohead front lt 1 lw 2 lc 7" 0 0 (* 1.01 max-counts))
       (mgl-gnuplot:plot*
        (list
 	(mgl-gnuplot:data* (iter
 			     (for (x c) in binned-data)
-			     (if (<= confidence-min x confidence-max)
+			     (if (<= (- confidence-min median) x (- confidence-max median))
 				 (collect (list x c))))
 			   (format nil "u 1:2 with boxes lc 7 title ''"))
 	(mgl-gnuplot:data* binned-data (format nil "u 1:2 with histeps lc 0 title '~a'" parameter)))))))

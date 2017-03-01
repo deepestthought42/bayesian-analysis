@@ -27,6 +27,13 @@
   (declare (ignore object slot-name))
   (coerce (/ 1 (- max min)) 'double-float))
 
+(defun certain-log-lambda (min max object slot-name)
+  (declare (ignore object slot-name min max))
+  #'(lambda () 0d0))
+
+(defun certain (min max object slot-name)
+  (declare (ignore object slot-name min max))
+  1d0)
 
 (defun make-prior-in-range (min max object slot-name)
   #'(lambda ()
@@ -34,10 +41,10 @@
       (<= min (slot-value object slot-name) max)))
 
 
-
 (defparameter *prior-types*
   '((:jeffreys jeffreys-log-lambda :variable jeffreys)
-    (:uniform uniform-log-lambda :constant uniform)))
+    (:uniform uniform-log-lambda :constant uniform)
+    (:certain certain-log-lambda :constant certain)))
 
 
 (define-condition unknown-prior-type (error)

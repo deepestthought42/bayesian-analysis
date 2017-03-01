@@ -63,37 +63,38 @@
 
 
 
-(defun make-slot-specifiers-for-parameter (name &key default min max
-						     (sample-sigma 1d0)
+(defun make-slot-specifiers-for-parameter (name &key (default 0d0)
+						     (min 0d0) (max 0d0)
+						     (sample-sigma 0.1d0)
 						     (sample-type :gaussian)
-						     (marginalize t)
+						     (marginalize nil)
 						     (bin-width 0.1d0)
 						     (description "")
-						     (prior-type :jeffreys))
-  (labels ((make-default-param (name default-value &optional coerce)
-	     (if (not default-value)
+						     (prior-type :certain))
+  (labels ((make-default-param (name use-default default-value &optional coerce)
+	     (if (not use-default)
 		 `(error ,(format nil "No value known for parameter: ~a" name))
 		 (if coerce
 		     `,(coerce default-value 'double-float)
 		     `,default-value)))
 	   (n (cat &key is-key)
 	     (w/suffix-slot-category cat name :is-key is-key))
-	   (standard-slot (category default &optional coerce)
+	   (standard-slot (category use-default default &optional coerce)
 	     (let ((slot-name (n category)))
 	       `(,slot-name
 		 :reader slot-name
 		 :initarg ,(n category :is-key t)
-		 :initform ,(make-default-param slot-name default coerce)))))
+		 :initform ,(make-default-param slot-name use-default default coerce)))))
     `((,name :accessor ,name :initarg ,(alexandria:make-keyword name)
-	     :initform ,(make-default-param name default t))
-      ,(standard-slot :marginalize marginalize)
-      ,(standard-slot :prior-type prior-type)
-      ,(standard-slot :min min t)
-      ,(standard-slot :max max t)
-      ,(standard-slot :sample-type sample-type)
-      ,(standard-slot :sample-sigma sample-sigma t)
-      ,(standard-slot :bin-width bin-width t)
-      ,(standard-slot :description description))))
+	     :initform ,(make-default-param name t default t))
+      ,(standard-slot :marginalize t marginalize)
+      ,(standard-slot :prior-type t prior-type)
+      ,(standard-slot :min t min t)
+      ,(standard-slot :max t max t)
+      ,(standard-slot :sample-type t sample-type)
+      ,(standard-slot :sample-sigma t sample-sigma t)
+      ,(standard-slot :bin-width t bin-width t)
+      ,(standard-slot :description t description))))
 
 
 

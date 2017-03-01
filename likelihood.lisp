@@ -31,17 +31,28 @@
     (alexandria:with-gensyms (f_i Q fun N)
       (values
        `(labels ((,fun (,@all-data-parameters)
-		   (let* ((,f_i (,model-function-name ,@data-independent-parameters
-						      ,model-object-name))
-			  (,Q (- ,@data-dependent-parameters ,f_i)))
+		   (declare (type (double-float) ,@all-data-parameters))
+		   (let* ((,f_i (the double-float
+				     (,model-function-name ,@data-independent-parameters
+							   ,model-object-name)))
+			  (,Q (the double-float
+				   (- ,@data-dependent-parameters ,f_i))))
 		     (expt (/ ,Q ,@data-error-parameters) 2))))
-	  (let-plus:let+ (((let-plus:&slots ,@all-data-parameters) ,data-object-name)
-			  (d_i (map 'simple-vector #',fun ,@all-data-parameters)))
-	    (- (reduce #'+ d_i))))
+	  (let-plus:let+ (((let-plus:&slots ,@all-data-parameters) ,data-object-name))
+	    (declare (type (simple-array double-float) ,@all-data-parameters))
+	    (- (iter:iter
+		 (declare (type fixnum i))
+		 (iter:for i from 0 below (ba:no-data-points ,data-object-name))
+		 (iter:sum (funcall #',fun ,@(mapcar #'(lambda (p) `(aref ,p i)) all-data-parameters)))))))
        `(let-plus:let+ (((let-plus:&slots ,@data-error-parameters) ,data-object-name)
 			(,N (coerce (length ,@data-error-parameters) 'double-float)))
+	  (declare (type (simple-array double-float) ,@data-error-parameters)
+		   (type double-float ,N))
 	  (log (/ 1 (* (expt (* 2 pi) (/ ,N 2))
-		       (reduce #'* ,@data-error-parameters :initial-value 1d0)))))))))
+		       (iter:iter
+			 (declare (type fixnum i))
+			 (iter:for i from 0 below (ba:no-data-points ,data-object-name))
+			 (iter:multiply (aref ,@data-error-parameters i)))))))))))
 
 
 (defun make-likelihood-codes (likelihood-type 

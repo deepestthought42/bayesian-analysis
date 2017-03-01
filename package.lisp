@@ -31,6 +31,10 @@
    #:wrong-data-type
    #:wrong-number-of-arguments
    #:get-parameter-description-text
-   #:unknown-parameter)
+   #:unknown-parameter
+   #:define-bayesian-model
+   #:define-data-class
+   #:metropolis-hastings
+   #:solve-for-parameters)
   (:nicknames ba))
 
