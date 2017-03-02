@@ -47,7 +47,7 @@
 
 
 
-(defgeneric bin-parameter-values (result parameter bin-size &key start end))
+(defgeneric bin-parameter-values (result parameter &key start end))
 (defgeneric get-parameter-results (result &key start end))
 
 (defun %calculate-confidance (array no-iterations confidance-level)
@@ -62,16 +62,31 @@
 
 
 
+(defun %get-bin-width/no-bins (parameter-array pos start end no-bins)
+  (let+ (((&values min max unrounded)
+	  (iter
+	    (for i from start below end)
+	    (for val = (aref parameter-array pos i))
+	    (maximize val into max)
+	    (minimize val into min)
+	    (finally
+	         (if (<= max min)
+		     (error "Couldn't calculate bin width."))
+		 (return (values min max (/ (- max min) no-bins))))))
+	 (bin-width (expt 10 (floor (log unrounded 10))))
+	 (no-bins (ceiling (/ (- max min) bin-width))))
+    (values (coerce bin-width 'double-float) no-bins)))
 
 
-(defmethod bin-parameter-values ((result mcmc-parameter-result) parameter bin-width
-				 &key (start 0) end (confidence-level 0.69))
+
+(defmethod bin-parameter-values ((result mcmc-parameter-result) parameter
+				 &key (no-bins 100) (start 0) end (confidence-level 0.69))
   (let+ (((&slots iteration-accumulator) result)
-	 (bin-width (coerce bin-width 'double-float))
 	 ((&slots marginalized-parameters parameter-array
 		  no-iterations) iteration-accumulator)
 	 (end (if (not end) no-iterations end))
-	 (pos (position parameter marginalized-parameters)))
+	 (pos (position parameter marginalized-parameters))
+	 ((&values bin-width no-bins) (%get-bin-width/no-bins parameter-array pos start end no-bins)))
     (if (not pos)
 	(error "Parameter: ~a was not marginalized over." parameter))
     (let+ (((&values vals min max)
@@ -82,7 +97,6 @@
 	      (minimize val into min)
 	      (collect val into vals)
 	      (finally (return (values vals min max)))))
-	   (no-bins (round (/ (- max min) bin-width)))
 	   (binned (make-array (1+ no-bins)
 				  :initial-contents
 				  (iter
@@ -139,24 +153,24 @@
    (max-counts :initarg :max-counts :accessor max-counts 
 	       :initform (error "Must initialize max-counts."))
    (binned-data :initarg :binned-data :accessor binned-data 
-		:initform (error "Must initialize binned-data."))
-   (bin-width :initarg :bin-width :accessor bin-width 
-	      :initform (error "Must initialize bin-width."))))
+		:initform (error "Must initialize binned-data."))))
 
 
-(defmethod get-parameter-results ((result mcmc-parameter-result) &key (start 0) end (confidence-level 0.69))
+(defmethod get-parameter-results ((result mcmc-parameter-result)
+				  &key (start 0) end (confidence-level 0.69)
+				       (no-bins 50))
   (let+ (((&slots iteration-accumulator input-model no-iterations data) result)
 	 ((&slots model-parameters-to-marginalize) input-model)
 	 (model (copy-object input-model))
 	 (end (if end end no-iterations))
 	 (param-infos (iter
 			(for p in model-parameters-to-marginalize)
-			(for bin-width = (slot-value model (w/suffix-slot-category :bin-width p)))
 			(let+ (((&values binned-data median min max max-counts)
-				(bin-parameter-values result p bin-width
+				(bin-parameter-values result p
+						      :no-bins no-bins
 						      :start start :end end
 						      :confidence-level confidence-level)))
-			  (setf (slot-value model p) median)
+			  (setf (slot-value model p) (coerce median 'double-float))
 			  (collect (make-instance 'parameter-result
 						  :name p
 						  :median median
@@ -164,8 +178,7 @@
 						  :confidence-min min
 						  :confidence-max max
 						  :max-counts max-counts
-						  :binned-data binned-data
-						  :bin-width bin-width))))))
+						  :binned-data binned-data))))))
     (make-instance 'solved-parameters
 		   :algorithm-result result
 		   :parameter-infos param-infos

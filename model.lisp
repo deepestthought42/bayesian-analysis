@@ -48,7 +48,6 @@
     (:max -max)
     (:sample-sigma -sample-sigma)
     (:sample-type -sample-type)
-    (:bin-width -bin-width)
     (:description -description)))
 
 
@@ -68,7 +67,6 @@
 						     (sample-sigma 0.1d0)
 						     (sample-type :gaussian)
 						     (marginalize nil)
-						     (bin-width 0.1d0)
 						     (description "")
 						     (prior-type :certain))
   (labels ((make-default-param (name use-default default-value &optional coerce)
@@ -93,7 +91,6 @@
       ,(standard-slot :max t max t)
       ,(standard-slot :sample-type t sample-type)
       ,(standard-slot :sample-sigma t sample-sigma t)
-      ,(standard-slot :bin-width t bin-width t)
       ,(standard-slot :description t description))))
 
 

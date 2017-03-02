@@ -35,6 +35,8 @@
    #:define-bayesian-model
    #:define-data-class
    #:metropolis-hastings
-   #:solve-for-parameters)
+   #:solve-for-parameters
+   #:get-parameter-results
+   #:plot-parameter-distribution)
   (:nicknames ba))
 

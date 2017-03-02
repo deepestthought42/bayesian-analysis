@@ -48,7 +48,11 @@
 	(mgl-gnuplot:data* plot-data options))))))
 
 
-(defmethod plot-result-model ((result solved-parameters) &key (no-steps 1000))
+(defmethod plot-result-model ((result solved-parameters)
+			      &key (no-steps 1000)
+				   (style-options/data "using 1:2:3 with errorbars pt 7 title ''" )
+				   (style-options/input "with lines lt 3 lw 0.3 lc 0 title 'input model'")
+				   (style-options/result "with lines lw 1.5 lc 7 title 'result model'"))
   (let+ (((&slots model data algorithm-result) result)
 	 ((&slots input-model) algorithm-result)
 	 (fun (model-function input-model)))
@@ -64,9 +68,9 @@
 	      (finally (return (values id rd))))))
       (mgl-gnuplot:plot*
        (list
-	(mgl-gnuplot:data* plot-data "with errorbars title ''")
-	(mgl-gnuplot:data* model-input-data "with lines lt 3 lw 0.3 lc 0 title 'input model'")
-	(mgl-gnuplot:data* model-results-data "with lines lw 1.5 lc 7 title 'result model'"))))))
+	(mgl-gnuplot:data* plot-data style-options/data)
+	(mgl-gnuplot:data* model-input-data style-options/input)
+	(mgl-gnuplot:data* model-results-data style-options/result))))))
 
 
 (defmethod plot-iteration-values ((result mcmc-parameter-result)
