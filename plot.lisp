@@ -10,67 +10,122 @@
 
 ;;; implementation
 
-(defun %get-mgl-data-for-data-1d-w/errors (data)
-  (let+ (((&slots independent-parameters dependent-parameters
-		  error-parameters) data)
-	 (xs (slot-value data (first independent-parameters)))
-	 (ys (slot-value data (first dependent-parameters)))
-	 (ss (slot-value data (first error-parameters))))
-    (iter
-      (for x in-sequence xs)
-      (for y in-sequence ys)
-      (for s in-sequence ss)
-      (collect (list x y s) into pd)
-      (minimize x into min-x)
-      (maximize x into max-x)
-      (finally (return (values pd min-x max-x))))))
 
+(defun %get-mgl-data (data x-slot other-slots)
+  (let+ (((&values min-x max-x)
+	  (iter
+	    (for x in-sequence (slot-value data x-slot))
+	    (minimize x into min-x)
+	    (maximize x into max-x)
+	    (finally (return (values min-x max-x)))))
+	 (len (length (slot-value data x-slot)))
+	 (offset (+ min-x (/ (- max-x min-x) 2))))
+    (values
+     (iter
+       (for i from 0 below len)
+       (collect
+	   (append (list (- (aref (slot-value data x-slot) i) offset))
+		   (iter
+		     (for slot in other-slots)
+		     (collect (aref (slot-value data slot) i))))))
+     min-x max-x offset)))
 
-
-(defmethod plot-data ((data data) &key (style "lc 7 pt 7 lw 1.5 pw 1.5")
-				       title xlabel ylabel)
-  (unless (= 1 (no-independent-parameters data)
-	     (no-dependent-parameters data) (no-error-parameters data))
-    (error "plotting of given data not supported."))
+(defun %get-gnuplot-labels-for-1x/1y-and-title (data title xlabel ylabel offset)
   (labels ((cmd (fmt-str &rest args)
 	       (apply #'format t fmt-str args)
 	     (mgl-gnuplot:command (apply #'format nil fmt-str args)))
 	   (iff (obj else) (if obj obj else)))
     (let+ (((x) (iff xlabel (independent-parameters data)))
-	   ((y) (iff ylabel (dependent-parameters data)))
-	   (title (iff title (format nil "~a_i[~a_i]" y x)))
-	   ((&values plot-data) (%get-mgl-data-for-data-1d-w/errors data))
-	   (options (format nil "using 1:2:3 with errorbars title '~a' ~a" title style)))
+	   (xx (format nil "~a - ~f" x offset))
+	   ((y) (iff ylabel (dependent-parameters data))))
+      (values xx y
+	      (iff title (format nil "~a_i[~a_i - ~f]" y x offset))))))
+
+
+(defun get-plot-mgl-plot-data (data independent-parameter other-parameters
+			       plot-type style title xlabel ylabel)
+  (labels ((cmd (fmt-str &rest args)
+	     (apply #'format t fmt-str args)
+	     (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+    (let+ (((&values plot-data min-x max-x offset)
+	    (%get-mgl-data data
+			   independent-parameter
+			   other-parameters))
+	   ((&values x y title) (%get-gnuplot-labels-for-1x/1y-and-title
+				 data title xlabel ylabel offset))
+	   (options (format nil "with ~a  ~a title '~a'"
+			    plot-type style title)))
+      (values
+       (mgl-gnuplot:data* plot-data options) x y min-x max-x offset))))
+
+
+
+(defun get-plot-mgl-data-depending-on-type (data style title xlabel ylabel)
+  (labels ((f (slot) (first (slot-value data slot))))
+    (cond
+      ((= 1 (no-independent-parameters data)
+	  (no-dependent-parameters data)
+	  (no-error-parameters data))
+       (get-plot-mgl-plot-data data
+			       (f 'independent-parameters)
+			       (list (f 'dependent-parameters)
+				     (f 'error-parameters))
+			       "errorbars" style
+			       title xlabel ylabel))
+      ((and (= 1 (no-independent-parameters data) (no-dependent-parameters data))
+	    (= 0 (no-error-parameters data)))
+       (get-plot-mgl-plot-data data
+			       (f 'independent-parameters)
+			       (list (f 'dependent-parameters))
+			       "points" style title xlabel ylabel))
+      (t (error "plotting of given data not supported.")))))
+
+(defmethod plot-data ((data data) &key (style "lc 7 pt 7 lw 1 pw 1")
+				       title xlabel ylabel)
+  (labels ((cmd (fmt-str &rest args)
+	     (apply #'format t fmt-str args)
+	     (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+    (let+ (((&values plot-data x y min-x max-x offset)
+	    (get-plot-mgl-data-depending-on-type data style title xlabel ylabel)))
+      (cmd "set xrange [~f:~f]" (- min-x offset) (- max-x offset))
       (cmd "set xlabel '~a'" x)
       (cmd "set ylabel '~a'" y)
-      (mgl-gnuplot:plot*
-       (list
-	(mgl-gnuplot:data* plot-data options))))))
+      (mgl-gnuplot:plot* (list plot-data)))))
+
+
+
 
 
 (defmethod plot-result-model ((result solved-parameters)
 			      &key (no-steps 1000)
-				   (style-options/data "using 1:2:3 with errorbars pt 7 title ''" )
+				   (style-options/data "pt 7")
 				   (style-options/input "with lines lt 3 lw 0.3 lc 0 title 'input model'")
 				   (style-options/result "with lines lw 1.5 lc 7 title 'result model'"))
   (let+ (((&slots model data algorithm-result) result)
 	 ((&slots input-model) algorithm-result)
 	 (fun (model-function input-model)))
-    (unless (= 1 (no-independent-parameters data)
-	       (no-dependent-parameters data) (no-error-parameters data))
-      (error "plotting of given data not supported."))
-    (let+ (((&values plot-data min-x max-x) (%get-mgl-data-for-data-1d-w/errors data))
+    (let+ (((&values plot-data x-label y-label min-x max-x offset)
+	    (get-plot-mgl-data-depending-on-type data style-options/data "" nil nil))
 	   ((&values model-input-data model-results-data)
 	    (iter
 	      (for x from min-x to max-x by (/ (- max-x min-x) no-steps))
-	      (collect (list x (funcall fun x input-model)) into id)
-	      (collect (list x (funcall fun x model)) into rd)
+	      (collect (list (- x offset) (funcall fun x input-model)) into id)
+	      (collect (list (- x offset) (funcall fun x model)) into rd)
 	      (finally (return (values id rd))))))
+      (labels ((cmd (fmt-str &rest args)
+		 (apply #'format t fmt-str args)
+		 (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+	(cmd "set xrange [~f:~f]" (- min-x offset) (- max-x offset))
+	(cmd "set xlabel '~a'" x-label )
+	(cmd "set ylabel '~a'" y-label))
+
       (mgl-gnuplot:plot*
        (list
-	(mgl-gnuplot:data* plot-data style-options/data)
+	plot-data
 	(mgl-gnuplot:data* model-input-data style-options/input)
 	(mgl-gnuplot:data* model-results-data style-options/result))))))
+
+
 
 
 (defmethod plot-iteration-values ((result mcmc-parameter-result)
