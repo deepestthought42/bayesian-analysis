@@ -80,7 +80,7 @@
 	   (standard-slot (category use-default default &optional coerce)
 	     (let ((slot-name (n category)))
 	       `(,slot-name
-		 :reader slot-name
+		 :reader ,slot-name
 		 :initarg ,(n category :is-key t)
 		 :initform ,(make-default-param slot-name use-default default coerce)))))
     `((,name :accessor ,name :initarg ,(alexandria:make-keyword name)
@@ -165,9 +165,9 @@
      (--acc--initialize object no-iterations)))
 
 
-(defun make-model-class-and-coby-object (name parameters)
+(defun make-model-class-and-coby-object (name parameters equal-sigma-parameter)
   (let+ ((all-slot-specifiers (mapcan #'(lambda (s) (apply #'make-slot-specifiers-for-parameter s))
-				      parameters)))
+				       parameters)))
     `((defclass ,name (bayesian-analysis:model)
 	(,@all-slot-specifiers))
       (defmethod copy-object ((object ,name))
@@ -186,6 +186,7 @@
 			    model-parameters body)
   (alexandria:with-gensyms (model-object)
     `(defun ,model-function-name (,@independent-parameters ,model-object)
+       (declare (type double-float ,@independent-parameters))
        (let-plus:let+ (((let-plus:&slots ,@model-parameters) ,model-object))
 	 (progn ,@body)))))
 
@@ -194,25 +195,28 @@
 
 (defmacro define-bayesian-model ((name data-type &key model-prior-code documentation) 
 				 (&rest model-parameters)
-				 (likelihood-type &key constant-likelihood-code varying-likelihood-code)
+				 (likelihood-type &key equal-sigma-parameter)
 				 ((&rest independent-parameters) &body body))
-  (let+ ((model-function-name (model-function-name name)))
+  (let+ ((model-function-name (model-function-name name))
+	 (model-parameters (append
+			    model-parameters
+			    (if equal-sigma-parameter
+				`(,equal-sigma-parameter)))))
+    (%check-likelihood-params likelihood-type equal-sigma-parameter)
     `(progn
-       ,@(make-model-class-and-coby-object name model-parameters)
+       ,@(make-model-class-and-coby-object name model-parameters equal-sigma-parameter)
        ,(make-initialize-after-code name model-function-name
 				    (mapcar #'first model-parameters)
 				    documentation
 				    model-prior-code)
        ,(make-accumulator-method name)
-       ,(make-model-function model-function-name independent-parameters
-			     (mapcar #'first model-parameters)
-			     body)
+       ,(make-model-function model-function-name independent-parameters (mapcar #'first model-parameters) body)
        ,(make-likelihood-initializer name likelihood-type
 				     model-function-name 
 				     (bayesian-analysis:get-independent-parameters data-type)
 				     (bayesian-analysis:get-dependent-parameters data-type)
 				     (bayesian-analysis:get-error-parameters data-type)
-				     data-type))))
+				     data-type (first equal-sigma-parameter)))))
 
 
  
