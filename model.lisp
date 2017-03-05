@@ -213,7 +213,6 @@
        ,(make-model-function model-function-name independent-parameters (mapcar #'first model-parameters) body)
        ,(make-likelihood-initializer name likelihood-type
 				     model-function-name 
-				     (bayesian-analysis:get-independent-parameters data-type)
 				     (bayesian-analysis:get-dependent-parameters data-type)
 				     (bayesian-analysis:get-error-parameters data-type)
 				     data-type (first equal-sigma-parameter)))))

@@ -16,83 +16,102 @@
 
 
 (defparameter *likelihood-types*
-  '((:d_i=f_i+gaussian_error_i)))
+  '((:d_i=f_i+gaussian_error_i_unequal_sigma)
+    (:d_i=f_i+gaussian_error_1_equal_sigma)))
 
 
-(defun make-f_i+gaussian-error_i-likelihood (model-function-name model-object-name
-					     data-independent-parameters
-					     data-dependent-parameters
-					     data-error-parameters
-					     data-object-name)
-  (let+ ((all-data-parameters (append data-independent-parameters
-				      data-dependent-parameters
-				      data-error-parameters)))
 
-    (alexandria:with-gensyms (f_i Q fun N)
-      (values
-       `(labels ((,fun (,@all-data-parameters)
-		   (declare (type (double-float) ,@all-data-parameters))
-		   (let* ((,f_i (the double-float
-				     (,model-function-name ,@data-independent-parameters
-							   ,model-object-name)))
-			  (,Q (the double-float
-				   (- ,@data-dependent-parameters ,f_i))))
-		     (expt (/ ,Q ,@data-error-parameters) 2))))
-	  (let-plus:let+ (((let-plus:&slots ,@all-data-parameters) ,data-object-name))
-	    (declare (type (simple-array double-float) ,@all-data-parameters))
-	    (- (iter:iter
-		 (declare (type fixnum i))
-		 (iter:for i from 0 below (ba:no-data-points ,data-object-name))
-		 (iter:sum (funcall #',fun ,@(mapcar #'(lambda (p) `(aref ,p i)) all-data-parameters)))))))
-       `(let-plus:let+ (((let-plus:&slots ,@data-error-parameters) ,data-object-name)
-			(,N (coerce (length ,@data-error-parameters) 'double-float)))
-	  (declare (type (simple-array double-float) ,@data-error-parameters)
-		   (type double-float ,N))
-	  (log (/ 1 (* (expt (* 2 pi) (/ ,N 2))
-		       (iter:iter
-			 (declare (type fixnum i))
-			 (iter:for i from 0 below (ba:no-data-points ,data-object-name))
-			 (iter:multiply (aref ,@data-error-parameters i)))))))))))
-
-
-(defun make-likelihood-codes (likelihood-type 
-			      model-function-name model-object-name
-			      data-independent-parameters
-			      data-dependent-parameters
-			      data-error-parameters
-			      data-object-name)
+(defun %check-likelihood-params (likelihood-type equal-sigma-parameter)
   (case likelihood-type
-    (:d_i=f_i+gaussian_error_i
-     (if (not (= 1 (length data-dependent-parameters) (length data-error-parameters)))
-	 (error "For a simple d_i = f_i + e_i, only one error
-	 parameter and one dependent parameter is supported."))
-     (make-f_i+gaussian-error_i-likelihood model-function-name model-object-name
-					   data-independent-parameters
-					   data-dependent-parameters
-					   data-error-parameters
-					   data-object-name))))
+    (:d_i=f_i+gaussian_error_i_unequal_sigma)
+    (:d_i=f_i+gaussian_error_1_equal_sigma
+     (if (not equal-sigma-parameter)
+	 (error "Need to provide parameter definition for EQUAL-SIGMA-PARAMETER, 
+when using :d_i=f_i+gaussian_error_1_equal_sigma type likelihood.")))))
+
+
+(defun create-likelihood-functions/gaussian/i-known-errors (model-function-name
+							    model-object
+							    data-object)
+  (let+ ((xs (slot-value data-object (first (independent-parameters data-object))))
+	 (ys (slot-value data-object (first (dependent-parameters data-object))))
+	 (errors (slot-value data-object (first (error-parameters data-object))))
+	 (no-data-points (no-data-points data-object)))
+    (labels ((varying ()
+	       (iter
+		 (with Q = 0d0)
+		 (for i from 0 below no-data-points)
+		 (for x = (aref xs i))
+		 (for y = (aref ys i))
+		 (for err = (aref errors i))
+		 (for d_i-y_i = (- y (funcall model-function-name x model-object)))
+		 (for sqrt-q = (/ d_i-y_i err))
+		 (incf Q (* sqrt-q sqrt-q))
+		 (finally (return (- (/ Q 2d0))))))
+	     (constant ()
+	       (iter
+		 (with retval = 1d0)
+		 (for i from 0 below no-data-points)
+		 (setf retval (* retval (aref errors i)))
+		 (finally
+		  (return
+		    (log (/ 1 (* (expt (* 2 pi) (/ no-data-points 2)) retval))))))))
+      (make-instance 'likelihood :varying/log-of-likelihood #'varying
+				 :constant/log-of-likelihood #'constant))))
+
+(defun create-likelihood-functions/gaussian/1-unknown-error (model-function-name
+							     model-object
+							     data-object
+							     equal-sigma-parameter)
+  (let+ ((xs (slot-value data-object (first (independent-parameters data-object))))
+	 (ys (slot-value data-object (first (dependent-parameters data-object))))
+	 (no-data-points (no-data-points data-object))
+	 (N (coerce no-data-points 'double-float)))
+    (labels ((varying ()
+	       (iter
+		 (with Q = 0d0)
+		 (for i from 0 below no-data-points)
+		 (for x = (aref xs i))
+		 (for y = (aref ys i))
+		 (incf Q (expt (- y (funcall model-function-name x model-object)) 2d0))
+		 ;; if this turns out to be a performance problem, we
+		 ;; can put it into a base class
+		 (finally
+		  (let ((sigma (slot-value model-object equal-sigma-parameter)))
+		    (return (- (+ (* N (log sigma)) (/ Q (* 2d0 sigma sigma)))))))))
+	     (constant ()
+	       (expt (* 2d0 pi) (/ N 2d0))))
+      (make-instance 'likelihood :varying/log-of-likelihood #'varying
+				 :constant/log-of-likelihood #'constant))))
+
 
 
 
 (defun make-likelihood-initializer (model-name likelihood-type
 				    model-function-name
-				    data-independent-parameters
 				    data-dependent-parameters
 				    data-error-parameters
-				    data-type)
+				    data-type
+				    equal-sigma-parameter)
   (alexandria:with-gensyms (data-object-name model-object-name)
-    (let+ (((&values varying constant)
-	    (make-likelihood-codes likelihood-type 
-				   model-function-name model-object-name
-				   data-independent-parameters data-dependent-parameters
-				   data-error-parameters data-object-name)))
-      `(defmethod bayesian-analysis:initialize-likelihood ((,model-object-name ,model-name)
-							   (,data-object-name ,data-type))
-	 (labels ((varying ()
-		    ,varying)
-		  (constant ()
-		    ,constant))
-	   (make-instance 'likelihood
-			  :varying/log-of-likelihood #'varying
-			  :constant/log-of-likelihood #'constant))))))
+    `(defmethod bayesian-analysis:initialize-likelihood ((,model-object-name ,model-name)
+							 (,data-object-name ,data-type))
+       ,(case likelihood-type
+	  (:d_i=f_i+gaussian_error_i_unequal_sigma
+	   (if (not (= 1 (length data-dependent-parameters) (length data-error-parameters)))
+	       (error "For a simple d_i = f_i + e_i, only one error
+	 parameter and one dependent parameter is supported."))
+	   `(create-likelihood-functions/gaussian/i-known-errors #',model-function-name
+								 ,model-object-name
+								 ,data-object-name))
+	  (:d_i=f_i+gaussian_error_1_equal_sigma
+	   (if (not (and (= 1 (length data-dependent-parameters))
+			 (=  (length data-error-parameters))))
+	       (error "For a simple d_i = f_i + e_i, only one error
+	 parameter and one dependent parameter is supported."))
+	   `(create-likelihood-functions/gaussian/1-unknown-error #',model-function-name
+								  ,model-object-name
+								  ,data-object-name
+								  ',equal-sigma-parameter))))))
 
+ 
