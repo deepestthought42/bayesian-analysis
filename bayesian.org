@@ -1,10 +1,28 @@
+* docker stuff
+** start sly
+#+BEGIN_SRC emacs-lisp :results none
+(docker/start-sbcl-with-sly "penning-analysis" "deepestthought42/sbcl-1.3.15-bayesian-analysis:20170302"
+                            '(("/home/renee/phd/src/penning-analysis.project/" "/src/")
+                              ("/home/renee/phd/data_analysis/201607CD_In/" "/data_analysis/")
+                              ("/home/renee/phd/data_analysis/fitting_cross_check/" "/fitting_cross_check/"))
+                            4005 "/src/")
+#+END_SRC
+
 * TODOs
 ** DONE introduce code to block writing slots
 min, max, prior, etc should be immutable
 ** DONE method for plotting data
 ** DONE look at metropolis hastings and the signs 
-** WAITING get model comparison working
+** DONE make binning issues more sane
+- might be best to actually give a number of bins and then determine
+  the bin width by: (max - min)/no-bins
+  - how does that work for scale parameters though ?
 ** DONE make konig work
+** DONE work on likelihood code
+the current way of doing it seems overly complicated, let's not use a
+macro and create functions instead
+
+** WAITING get model comparison working
 ** STARTED make konig work faster
 this needs the fit-penning package to provide the konig model
 *** prerequisites
@@ -15,39 +33,34 @@ this needs the fit-penning package to provide the konig model
     (tof-data:data (midas:read-mpet-midas-file "/data_analysis/midas-files/20160708/run280463.mid") 1
                    :min-tof 20d0 :max-tof 50d0 :max-no-ions 2))
 #+END_SRC
-
 - parameters
   #+BEGIN_SRC lisp :results none
   (in-package #:fit-penning)
-  (defparameter *no-iterations* 100000)
+  (defparameter *no-iterations* 20000)
   #+END_SRC
-
-
-
-
 - and then some results to test stuff with
   #+BEGIN_SRC lisp :results none
   (in-package #:fit-penning)
 
-  (defparameter *mcmc-konig-result/1*
-    (ba:solve-for-parameters (make-instance 'ba:metropolis-hastings :no-iterations *no-iterations*)
-                             (make-instance 'bayes-konig
-                                            :om-c (* 2 pi 5556259.7d0)
-                                            :om-c-min (* 2 pi (- 5556259.7d0 30d0))
-                                            :om-c-max (* 2 pi (+ 5556259.7d0 30d0))
-                                            :om-c-sample-sigma 0.1d0
-                                            :om-m (* 2 pi 6112.3d0)
-                                            :om-c-bin-width 0.01d0
-                                            :e-0-sample-sigma 1d-1
-                                            :e-0-bin-width 0.1d0
-                                            :tof-offset-sample-sigma 0.01d0
-                                            :tof-offset-bin-width 0.01
-                                            :rho-m0-bin-width 1d-6
-                                            :rho-m0-sample-sigma 1d-5
-                                            :q 13d0)
-                             (ba:initialize-from-source 'bayes-tof *d*)))
+  (time
+   (defparameter *mcmc-konig-result/1*
+     (ba:solve-for-parameters (make-instance 'ba:metropolis-hastings :no-iterations *no-iterations*)
+                              (make-instance 'bayes-konig
+                                             :om-c (* 2 pi 5556259.7d0)
+                                             :om-c-min (* 2 pi (- 5556259.7d0 30d0))
+                                             :om-c-max (* 2 pi (+ 5556259.7d0 30d0))
+                                             :om-c-sample-sigma 0.1d0
+                                             :om-m (* 2 pi 6112.3d0)
+                                             :om-c-bin-width 0.01d0
+                                             :e-0-sample-sigma 1d-1
+                                             :e-0-bin-width 0.1d0
+                                             :tof-offset-sample-sigma 0.01d0
+                                             :tof-offset-bin-width 0.01
+                                             :rho-m0-bin-width 1d-6
+                                             :rho-m0-sample-sigma 1d-5
+                                             :q 13d0)
+                              (ba:initialize-from-source 'bayes-tof *d*))))
   #+END_SRC
-
 
 *** let's plot it to make sure it worked
 - iterations
@@ -65,10 +78,8 @@ this needs the fit-penning package to provide the konig model
        :start 0 :every 10)
       (cmd "unset output")))
   #+END_SRC
-
-
 - distributions
-  #+BEGIN_SRC lisp
+  #+BEGIN_SRC lisp :results none
   (in-package #:fit-penning)
 
   (labels ((cmd (fmt-str &rest args)
@@ -77,27 +88,23 @@ this needs the fit-penning package to provide the konig model
         (cmd "reset")
         (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
         (ba:plot-parameter-distribution
-         (ba:get-parameter-results *mcmc-konig-result/1* :no-bins 10 :start 1000) 'om-c)
+         (ba:get-parameter-results *mcmc-konig-result/1* :no-bins 25 :start 1000) 'om-c)
         (cmd "unset output")))
   #+END_SRC
 
   #+RESULTS:
-  : unset output
-
 - result model
   #+BEGIN_SRC lisp :results none
   (in-package #:fit-penning)
-
 
   (labels ((cmd (fmt-str &rest args)
              (mgl-gnuplot:command (apply #'format nil fmt-str args))))
     (mgl-gnuplot:with-session ()
       (cmd "reset")
       (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-      (ba:plot-result-model
-       (ba:get-parameter-results
-        ,*mcmc-konig-result/1* 
-        :start 1500))
+      (ba:plot-result-model (ba:get-parameter-results
+  			   ,*mcmc-konig-result/1* 
+  			   :start 1500))
       (cmd "unset output")))
 #+END_SRC
 *** let's get a profile base-line
@@ -110,18 +117,25 @@ this needs the fit-penning package to provide the konig model
 
 
 
+
+
 #+END_SRC
 
 #+RESULTS:
 : *D*
-
-** TODO make binning issues more sane
-- might be best to actually give a number of bins and then determine
-  the bin width by: (max - min)/no-bins
-  - how does that work for scale parameters though ?
 ** TODO testing
 - [ ] model comparison
 - [ ] fits
+** TODO create likelihood function for different assumptions
+*** [ ] only x values
+let's see if I can do that already 
+#+BEGIN_SRC lisp
+(in-package #:fit-penning)
+
+
+
+
+#+END_SRC
 ** TODO make use of provided priors
 ** TODO introduce other types of error assumptions
 ** TODO plotting methods stuff diff. than xys

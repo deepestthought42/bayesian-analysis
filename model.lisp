@@ -195,13 +195,16 @@
 
 (defmacro define-bayesian-model ((name data-type &key model-prior-code documentation) 
 				 (&rest model-parameters)
-				 (likelihood-type &key equal-sigma-parameter)
+				 (likelihood-type &key equal-sigma-parameter
+						       amplitude-parameter)
 				 ((&rest independent-parameters) &body body))
   (let+ ((model-function-name (model-function-name name))
 	 (model-parameters (append
 			    model-parameters
 			    (if equal-sigma-parameter
-				`(,equal-sigma-parameter)))))
+				`(,equal-sigma-parameter))
+			    (if amplitude-parameter
+				`(,amplitude-parameter)))))
     (%check-likelihood-params likelihood-type equal-sigma-parameter)
     `(progn
        ,@(make-model-class-and-coby-object name model-parameters equal-sigma-parameter)
@@ -215,7 +218,9 @@
 				     model-function-name 
 				     (bayesian-analysis:get-dependent-parameters data-type)
 				     (bayesian-analysis:get-error-parameters data-type)
-				     data-type (first equal-sigma-parameter)))))
+				     data-type
+				     (first equal-sigma-parameter)
+				     (first amplitude-parameter)))))
 
 
  

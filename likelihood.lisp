@@ -62,7 +62,8 @@ when using :d_i=f_i+gaussian_error_1_equal_sigma type likelihood.")))))
 (defun create-likelihood-functions/gaussian/1-unknown-error (model-function-name
 							     model-object
 							     data-object
-							     equal-sigma-parameter)
+							     equal-sigma-parameter
+							     amplitude-parameter)
   (let+ ((xs (slot-value data-object (first (independent-parameters data-object))))
 	 (ys (slot-value data-object (first (dependent-parameters data-object))))
 	 (no-data-points (no-data-points data-object))
@@ -77,8 +78,10 @@ when using :d_i=f_i+gaussian_error_1_equal_sigma type likelihood.")))))
 		 ;; if this turns out to be a performance problem, we
 		 ;; can put it into a base class
 		 (finally
-		  (let ((sigma (slot-value model-object equal-sigma-parameter)))
-		    (return (- (+ (* N (log sigma)) (/ Q (* 2d0 sigma sigma)))))))))
+		  (let ((sigma (slot-value model-object equal-sigma-parameter))
+			(amplitude (slot-value model-object amplitude-parameter)))
+		    (return (- (+ (* N (log (+ sigma amplitude)))
+				  (/ Q (* 2d0 sigma sigma)))))))))
 	     (constant ()
 	       (expt (* 2d0 pi) (/ N 2d0))))
       (make-instance 'likelihood :varying/log-of-likelihood #'varying
@@ -92,7 +95,8 @@ when using :d_i=f_i+gaussian_error_1_equal_sigma type likelihood.")))))
 				    data-dependent-parameters
 				    data-error-parameters
 				    data-type
-				    equal-sigma-parameter)
+				    equal-sigma-parameter
+				    amplitude-parameter)
   (alexandria:with-gensyms (data-object-name model-object-name)
     `(defmethod bayesian-analysis:initialize-likelihood ((,model-object-name ,model-name)
 							 (,data-object-name ,data-type))
@@ -112,6 +116,7 @@ when using :d_i=f_i+gaussian_error_1_equal_sigma type likelihood.")))))
 	   `(create-likelihood-functions/gaussian/1-unknown-error #',model-function-name
 								  ,model-object-name
 								  ,data-object-name
-								  ',equal-sigma-parameter))))))
+								  ',equal-sigma-parameter
+								  ',amplitude-parameter))))))
 
  
