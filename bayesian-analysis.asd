@@ -8,7 +8,8 @@
                #:iterate
                #:let-plus
 	       #:gsl-cffi
-	       #:mgl-gnuplot)
+	       #:mgl-gnuplot
+	       #:verbose)
   :serial t
   :components ((:file "package")
 	       (:file "init")

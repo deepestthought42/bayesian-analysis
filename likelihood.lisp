@@ -74,18 +74,27 @@ when using :d_i=f_i+gaussian_error_1_equal_sigma type likelihood.")))))
 		 (for i from 0 below no-data-points)
 		 (for x = (aref xs i))
 		 (for y = (aref ys i))
-		 (incf Q (expt (- y (funcall model-function-name x model-object)) 2d0))
+		 (for d_i-y_i = (- y (funcall model-function-name x model-object)))
+		 (incf Q (* d_i-y_i d_i-y_i))
 		 ;; if this turns out to be a performance problem, we
 		 ;; can put it into a base class
 		 (finally
 		  (let ((sigma (slot-value model-object equal-sigma-parameter))
 			(amplitude (slot-value model-object amplitude-parameter)))
-		    (return (- (+ (* N (log (+ sigma amplitude)))
+		    (return (- (+ (* N (log (* sigma amplitude)))
 				  (/ Q (* 2d0 sigma sigma)))))))))
 	     (constant ()
 	       (expt (* 2d0 pi) (/ N 2d0))))
-      (make-instance 'likelihood :varying/log-of-likelihood #'varying
-				 :constant/log-of-likelihood #'constant))))
+      (make-instance 'likelihood
+		     :varying/log-of-likelihood
+		     (if *debug-function*
+			 #'(lambda ()
+			     (let ((val (varying)))
+			       (debug-out :info :likelihood
+					  "Caluclated varying likelihood to be: ~f" val)
+			       val))
+			 #'varying)
+		     :constant/log-of-likelihood #'constant))))
 
 
 

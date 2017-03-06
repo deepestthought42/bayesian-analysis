@@ -37,6 +37,9 @@
    #:metropolis-hastings
    #:solve-for-parameters
    #:get-parameter-results
-   #:plot-parameter-distribution)
+   #:plot-parameter-distribution
+   #:*debug-function*
+   #:default-debug-out
+   #:plot-likelihood)
   (:nicknames ba))
 

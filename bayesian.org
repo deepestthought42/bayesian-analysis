@@ -1,7 +1,7 @@
 * docker stuff
 ** start sly
 #+BEGIN_SRC emacs-lisp :results none
-(docker/start-sbcl-with-sly "penning-analysis" "deepestthought42/sbcl-1.3.15-bayesian-analysis:20170302"
+(docker/start-sbcl-with-sly "penning-analysis" "deepestthought42/sbcl-1.3.15-bayesian-analysis:20170305"
                             '(("/home/renee/phd/src/penning-analysis.project/" "/src/")
                               ("/home/renee/phd/data_analysis/201607CD_In/" "/data_analysis/")
                               ("/home/renee/phd/data_analysis/fitting_cross_check/" "/fitting_cross_check/"))
@@ -123,6 +123,84 @@ this needs the fit-penning package to provide the konig model
 
 #+RESULTS:
 : *D*
+** TODO make 2d work
+after loosing a lot of work by being stupid with git, let's do this again
+#+BEGIN_SRC lisp
+(in-package #:bayesian-analysis)
+
+
+
+(define-data-class 1d-gaussian x y 0
+    (obj (source t))
+  (let ((no-data-points 1000)
+	(mean 4d0)
+	(sigma 1d0)
+	(rng (gsl-cffi:get-random-number-generator gsl-cffi::*mt19937_1999*)))
+    (setf y (make-array no-data-points
+			:element-type 'double-float
+			:initial-contents
+			(iter
+			  (repeat no-data-points)
+			  (collect (+ mean (gsl-cffi:random-gaussian rng sigma)))))
+	  x (make-array no-data-points
+			:element-type 'double-float
+			:initial-element 1d0)
+	  ;; err (make-array no-data-points
+	  ;; 		  :element-type 'double-float
+	  ;; 		  :initial-element 0.1d0)
+	  )))
+
+
+
+(define-bayesian-model (test-mean 1d-gaussian)
+    ((mean :marginalize t :prior-type :uniform :min -40 :max 40 :default 10))
+    (:d_i=f_i+gaussian_error_1_equal_sigma
+     :equal-sigma-parameter
+     (sigma :marginalize t :prior-type :jeffreys :min 0.1 :max 10 :default 1)
+     :amplitude-parameter 
+     (b :marginalize nil :prior-type :jeffreys :min 0.01 :max 10 :default 1))
+    ((x) mean))
+
+
+
+(defparameter *data* (initialize-from-source '1d-gaussian t))
+
+(defparameter *test-result*
+  (solve-for-parameters (make-instance 'metropolis-hastings :no-iterations 10000)
+			(make-instance 'test-mean)
+			,*data*))
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+    (ba:plot-iteration-values *test-result* :params-to-plot '(sigma) :start 0 :every 1)
+    (cmd "unset output")))
+
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+    (ba:plot-likelihood *test-result* :start 0 :every 1)
+    (cmd "unset output")))
+
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+    (plot-data *data*)
+    (cmd "unset output")))
+
+
+#+END_SRC
+
+aha! seems that when using a jeffreys prior, things go wrong ... mmmh, interesting
+
 ** TODO testing
 - [ ] model comparison
 - [ ] fits

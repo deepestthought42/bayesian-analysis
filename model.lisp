@@ -165,7 +165,7 @@
      (--acc--initialize object no-iterations)))
 
 
-(defun make-model-class-and-coby-object (name parameters equal-sigma-parameter)
+(defun make-model-class-and-coby-object (name parameters)
   (let+ ((all-slot-specifiers (mapcan #'(lambda (s) (apply #'make-slot-specifiers-for-parameter s))
 				       parameters)))
     `((defclass ,name (bayesian-analysis:model)
@@ -186,7 +186,8 @@
 			    model-parameters body)
   (alexandria:with-gensyms (model-object)
     `(defun ,model-function-name (,@independent-parameters ,model-object)
-       (declare (type double-float ,@independent-parameters))
+       (declare (ignorable ,@independent-parameters)
+		(type double-float ,@independent-parameters))
        (let-plus:let+ (((let-plus:&slots ,@model-parameters) ,model-object))
 	 (progn ,@body)))))
 
@@ -207,7 +208,7 @@
 				`(,amplitude-parameter)))))
     (%check-likelihood-params likelihood-type equal-sigma-parameter)
     `(progn
-       ,@(make-model-class-and-coby-object name model-parameters equal-sigma-parameter)
+       ,@(make-model-class-and-coby-object name model-parameters)
        ,(make-initialize-after-code name model-function-name
 				    (mapcar #'first model-parameters)
 				    documentation

@@ -7,16 +7,16 @@
 (defun gaussian-lambda (rng sigma object slot-name)
   (if *debug-function*
       #'(lambda ()
-	  (let ((old-value (slot-value object slot-name)))
-	    (setf (slot-value object slot-name)
-		  (+ (slot-value object slot-name)
-		     (gsl-cffi:random-gaussian rng sigma)))
-	    (debug-out :sample "Gaussian draw for: ~a, old: ~,10d, new: ~,10d"
-		       slot-name old-value (slot-value object slot-name))))
+	  (let+ ((old (slot-value object slot-name))
+		 (new (+ old (gsl-cffi:random-gaussian rng sigma))))
+	    (debug-out :info :sample "Gaussian draw for: ~a, old: ~,10d, new: ~,10d"
+		       slot-name old new)
+	    (setf (slot-value object slot-name) new)))
       #'(lambda ()
 	  (setf (slot-value object slot-name)
 		(+ (slot-value object slot-name)
 		   (gsl-cffi:random-gaussian rng sigma))))))
+
 
 
 (defparameter *sampling-types*
@@ -52,9 +52,9 @@
 	   ((&slots rng) object))
       (iter
 	(for slot-name in-sequence parameters-to-marginalize with-index i)
-	(setf (aref sampler-array i)
-	      (funcall (get-sampling-creator (sv :sample-type slot-name))
-		       rng (sv :sample-sigma slot-name) object slot-name))
+	(for sampler = (funcall (get-sampling-creator (sv :sample-type slot-name))
+				rng (sv :sample-sigma slot-name) object slot-name))
+	(setf (aref sampler-array i) sampler)
 	(finally (return sampler-array))))))
 
 

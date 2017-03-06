@@ -1,7 +1,7 @@
 (in-package #:bayesian-analysis)
 
 
-(declaim (optimize (debug 3) (space 0) (safety 1) (speed 3)))
+;(declaim (optimize (debug 3) (space 0) (safety 1) (speed 3)))
 
 (defclass metropolis-hastings (mcmc-algorithm) ())
 
@@ -41,18 +41,15 @@
 		 (type double-float log-mh-ratio log-u
 		       nominator denominator))
 	(with accepted-iterations = 0)
-	(with denominator = (* (-> varying/log-of-priors)
+	(with denominator = (+ (-> varying/log-of-priors)
 			       (-> varying/log-of-likelihood)))
-
 	(for i from 0 below no-iterations)
 	(!> sample-new-parameters)
-	
 	(when (not (!> priors-in-range))
 	  (!> save-last-parameters)
 	  (next-iteration))
-	(for nominator = (* (-> varying/log-of-priors)
+	(for nominator = (+ (-> varying/log-of-priors)
 			    (-> varying/log-of-likelihood)))
-	
 	(for log-mh-ratio = (- nominator denominator))
 	(for log-u = (the double-float (log (aref random-numbers i))))
 	(if (> log-u log-mh-ratio)

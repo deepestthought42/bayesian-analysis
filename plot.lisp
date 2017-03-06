@@ -6,7 +6,7 @@
 (defgeneric plot-result-model (result &key))
 (defgeneric plot-iteration-values (result &key (params-to-plot) (start) end (every)))
 (defgeneric plot-data (data &key))
-
+(defgeneric plot-likelihood (result &key (start) end (every)))
 
 ;;; implementation
 
@@ -87,7 +87,8 @@
 	     (mgl-gnuplot:command (apply #'format nil fmt-str args))))
     (let+ (((&values plot-data x y min-x max-x offset)
 	    (get-plot-mgl-data-depending-on-type data style title xlabel ylabel)))
-      (cmd "set xrange [~f:~f]" (- min-x offset) (- max-x offset))
+      (unless (= min-x max-x)
+	(cmd "set xrange [~f:~f]" (- min-x offset) (- max-x offset)))
       (cmd "set xlabel '~a'" x)
       (cmd "set ylabel '~a'" y)
       (mgl-gnuplot:plot* (list plot-data)))))
@@ -99,26 +100,29 @@
 (defmethod plot-result-model ((result solved-parameters)
 			      &key (no-steps 1000)
 				   (style-options/data "pt 7")
-				   (style-options/input "with lines lt 3 lw 0.3 lc 0 title 'input model'")
-				   (style-options/result "with lines lw 1.5 lc 7 title 'result model'"))
-  (let+ (((&slots model data algorithm-result) result)
+				   (style-options/input "with lines lt 3 lw 0.3 lc 0 title 'input input-model'")
+				   (style-options/result "with lines lw 1.5 lc 7 title 'result input-model'"))
+  (let+ (((&slots input-model data algorithm-result) result)
 	 ((&slots input-model) algorithm-result)
 	 (fun (model-function input-model)))
     (let+ (((&values plot-data x-label y-label min-x max-x offset)
 	    (get-plot-mgl-data-depending-on-type data style-options/data "" nil nil))
 	   ((&values model-input-data model-results-data)
-	    (iter
-	      (for x from min-x to max-x by (/ (- max-x min-x) no-steps))
-	      (collect (list (- x offset) (funcall fun x input-model)) into id)
-	      (collect (list (- x offset) (funcall fun x model)) into rd)
-	      (finally (return (values id rd))))))
+	    (if (= min-x max-x)
+		(values `((,(- min-x offset) ,(funcall fun min-x input-model)))
+			`((,(- min-x offset) ,(funcall fun min-x input-model))))
+		(iter
+		  (for x from min-x to max-x by (/ (- max-x min-x) no-steps))
+		  (collect (list (- x offset) (funcall fun x input-model)) into id)
+		  (collect (list (- x offset) (funcall fun x input-model)) into rd)
+		  (finally (return (values id rd)))))))
       (labels ((cmd (fmt-str &rest args)
 		 (apply #'format t fmt-str args)
 		 (mgl-gnuplot:command (apply #'format nil fmt-str args))))
 	(cmd "set xrange [~f:~f]" (- min-x offset) (- max-x offset))
 	(cmd "set xlabel '~a'" x-label )
 	(cmd "set ylabel '~a'" y-label))
-
+      (break)
       (mgl-gnuplot:plot*
        (list
 	plot-data
@@ -172,6 +176,24 @@
 
 
 
-
+(defmethod plot-likelihood ((result mcmc-parameter-result) &key (start 0) (end) (every 1))
+  (let+ (((&slots iteration-accumulator input-model data) result)
+	 (new-model (copy-object input-model))
+	 (likelihood (initialize-likelihood new-model data))
+	 ((&slots marginalized-parameters parameter-array no-iterations) iteration-accumulator)
+	 (end (if end end no-iterations)))
+    (mgl-gnuplot:plot*
+     (list
+      (mgl-gnuplot:data*
+       (iter outer
+	 (for i from start below end)
+	 (when (= (mod i every) 0)
+	   (collect
+	       (iter
+		 (for p in marginalized-parameters)
+		 (for index-param = (position p marginalized-parameters))
+		 (setf (slot-value new-model p) (aref parameter-array index-param i))
+		 (finally (return (list i (funcall (varying/log-of-likelihood likelihood)))))))))
+       (format nil "with steps title 'likelihood'"))))))
 
 

@@ -7,8 +7,16 @@
 
 (defun jeffreys-log-lambda (min max object slot-name)
   (let ((ln-max/min (coerce (log (/ max min)) 'double-float)))
-    #'(lambda ()
-	(log (/ 1 (* (slot-value object slot-name) ln-max/min))))))
+    (if *debug-function*
+	#'(lambda ()
+	    (let ((val (log (/ 1 (* (slot-value object slot-name) ln-max/min)))))
+	      (debug-out :info :prior
+			 "Getting Jeffrey prior value for slot: ~a, value: ~f"
+			 slot-name val)
+	      val))
+	#'(lambda ()
+	    (log (/ 1 (* (slot-value object slot-name) ln-max/min)))))))
+
 
 
 (defun jeffreys (min max object slot-name)
@@ -17,28 +25,50 @@
     (/ 1 (* (slot-value object slot-name) ln-max/min))))
 
 (defun uniform-log-lambda (min max object slot-name)
-  (declare (ignore object slot-name))
+  (declare (ignore object))
   (let ((1/delta-x (coerce (/ 1 (- max min)) 'double-float)))
-    #'(lambda ()
-	(declare (type double-float 1/delta-x))
-	(log 1/delta-x))))
+    (if *debug-function*
+	#'(lambda ()
+	    (declare (type double-float 1/delta-x))
+	    (debug-out :info :prior
+		       "Getting uniform prior value for slot: ~a, value: ~f"
+		       slot-name 1/delta-x)
+	    (log 1/delta-x))
+	#'(lambda ()
+	    (declare (type double-float 1/delta-x))
+	    (log 1/delta-x)))))
 
 (defun uniform (min max object slot-name)
   (declare (ignore object slot-name))
   (coerce (/ 1 (- max min)) 'double-float))
 
 (defun certain-log-lambda (min max object slot-name)
-  (declare (ignore object slot-name min max))
-  #'(lambda () 0d0))
+  (declare (ignore object min max))
+  (if *debug-function*
+      #'(lambda ()
+	  (debug-out :info :prior
+		     "Getting certain prior value for slot: ~a"
+		     slot-name)
+	  0d0)
+      #'(lambda () 0d0)))
 
 (defun certain (min max object slot-name)
   (declare (ignore object slot-name min max))
   1d0)
 
 (defun make-prior-in-range (min max object slot-name)
-  #'(lambda ()
-      (declare (type double-float min max))
-      (<= min (slot-value object slot-name) max)))
+  (if *debug-function*
+      #'(lambda ()
+	  (declare (type double-float min max))
+	  (let+ ((val (slot-value object slot-name))
+		 (in-range (<= min val max)))
+	    (debug-out :info :prior
+		       "Is prior for slot: ~a and value: ~f in range: ~a"
+		       slot-name val in-range)
+	    in-range))
+      #'(lambda ()
+	  (declare (type double-float min max))
+	  (<= min (slot-value object slot-name) max))))
 
 
 (defparameter *prior-types*
@@ -89,8 +119,8 @@
 						       :initial-element #'(lambda () nil))))
       (iter
 	(for slot-name in-sequence model-parameters-to-marginalize with-index i)
-	(setf (aref prior-in-range-array i)
-	      (make-prior-in-range (sv :min slot-name) (sv :max slot-name) object slot-name))
+	(for in-range = (make-prior-in-range (sv :min slot-name) (sv :max slot-name) object slot-name))
+	(setf (aref prior-in-range-array i) in-range)
 	(finally (return prior-in-range-array))))))
 
 
@@ -107,11 +137,11 @@
 						 :initial-element #'(lambda () 0d0))))
       (iter
 	(for slot-name in-sequence varying-priors-slots with-index i)
-	(setf (aref varying/log-priors-array i)
-	      (funcall (get-prior-lambda (sv :prior-type slot-name))
-		       (sv :min slot-name)
-		       (sv :max slot-name)
-		       object slot-name))
+	(for prior = (funcall (get-prior-lambda (sv :prior-type slot-name))
+			      (sv :min slot-name)
+			      (sv :max slot-name)
+			      object slot-name))
+	(setf (aref varying/log-priors-array i) prior)
 	(finally (return (values varying/log-priors-array (length varying/log-priors-array))))))))
 
 
@@ -172,6 +202,7 @@
     		 (finally (return t))))
     	     (log-of-varying-prior ()
     	       (iter
+		 (declare (type double-float log-of-p))
     		 (for i from 0 below no-varying-priors)
     		 (iter:multiply (funcall (aref array-of-log-of-varying-priros i))
 				into log-of-p)

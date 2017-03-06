@@ -39,6 +39,9 @@
    (save-last-parameters :initarg :save-last-parameters :accessor save-last-parameters 
 			 :initform (error "Must initialize save-last-parameters."))))
 
+
+
+
 (defmethod initialize-instance :after ((object mcmc-accumulator) &key)
   (let+ (((&slots no-marginalized-parameters marginalized-parameters) object))
     (setf no-marginalized-parameters (length marginalized-parameters))))
