@@ -1,7 +1,7 @@
 (in-package #:bayesian-analysis)
 
 
-;(declaim (optimize (debug 3) (space 0) (safety 1) (speed 3)))
+(declaim (optimize (debug 3) (space 0) (safety 1) (speed 3)))
 
 (defclass metropolis-hastings (mcmc-algorithm) ())
 
@@ -37,9 +37,11 @@
 		     varying/log-of-priors))
       (iter
 	(declare (type fixnum accepted-iterations i no-iterations)
-		 (type (simple-array double-float) random-numbers)
+		 (type (simple-array (double-float 0d0)) random-numbers)
 		 (type double-float log-mh-ratio log-u
-		       nominator denominator))
+		       nominator denominator)
+		 (ftype (function ((function () double-float)) double-float) ->)
+		 (ftype (function ((function () t)) t) !>))
 	(with accepted-iterations = 0)
 	(with denominator = (+ (-> varying/log-of-priors)
 			       (-> varying/log-of-likelihood)))

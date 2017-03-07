@@ -189,6 +189,7 @@
        (declare (ignorable ,@independent-parameters)
 		(type double-float ,@independent-parameters))
        (let-plus:let+ (((let-plus:&slots ,@model-parameters) ,model-object))
+	 (declare (type double-float ,@model-parameters))
 	 (progn ,@body)))))
 
 
@@ -196,16 +197,13 @@
 
 (defmacro define-bayesian-model ((name data-type &key model-prior-code documentation) 
 				 (&rest model-parameters)
-				 (likelihood-type &key equal-sigma-parameter
-						       amplitude-parameter)
+				 (likelihood-type &key equal-sigma-parameter)
 				 ((&rest independent-parameters) &body body))
   (let+ ((model-function-name (model-function-name name))
 	 (model-parameters (append
 			    model-parameters
 			    (if equal-sigma-parameter
-				`(,equal-sigma-parameter))
-			    (if amplitude-parameter
-				`(,amplitude-parameter)))))
+				`(,equal-sigma-parameter)))))
     (%check-likelihood-params likelihood-type equal-sigma-parameter)
     `(progn
        ,@(make-model-class-and-coby-object name model-parameters)
@@ -220,8 +218,7 @@
 				     (bayesian-analysis:get-dependent-parameters data-type)
 				     (bayesian-analysis:get-error-parameters data-type)
 				     data-type
-				     (first equal-sigma-parameter)
-				     (first amplitude-parameter)))))
+				     (first equal-sigma-parameter)))))
 
 
  
