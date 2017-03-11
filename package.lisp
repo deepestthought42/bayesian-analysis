@@ -40,6 +40,8 @@
    #:plot-parameter-distribution
    #:*debug-function*
    #:default-debug-out
-   #:plot-likelihood)
+   #:plot-likelihood
+   #:new-sample?
+   #:cache)
   (:nicknames ba))
 

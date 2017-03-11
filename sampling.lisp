@@ -10,8 +10,7 @@
 	  (let+ ((old (slot-value object slot-name))
 		 (new (+ old (gsl-cffi:random-gaussian rng sigma))))
 	    (debug-out :info :sample "Gaussian draw for: ~a, old: ~,10d, new: ~,10d"
-		       slot-name old new)
-	    (setf (slot-value object slot-name) new)))
+		       slot-name old new)))
       #'(lambda ()
 	  (setf (slot-value object slot-name)
 		(+ (slot-value object slot-name)
@@ -46,24 +45,24 @@
 	     (w/suffix-slot-category cat name))
 	   (sv (cat name)
 	     (slot-value object (sn cat name))))
-    (let+ ((no-samplers (length parameters-to-marginalize))
+    (let+ ((no-samplers (1+ (length parameters-to-marginalize)))
 	   (sampler-array (make-array no-samplers :element-type '(function ())
-						  :initial-element #'(lambda ())))
+						  :initial-element #'(lambda () (setf (new-sample? object) t))))
 	   ((&slots rng) object))
       (iter
 	(for slot-name in-sequence parameters-to-marginalize with-index i)
 	(for sampler = (funcall (get-sampling-creator (sv :sample-type slot-name))
 				rng (sv :sample-sigma slot-name) object slot-name))
 	(setf (aref sampler-array i) sampler)
-	(finally (return sampler-array))))))
+	(finally (return (values sampler-array no-samplers)))))))
 
 
 
 (defun --init--sampling-functions (model-object)
   (let+ (((&slots model-parameters-to-marginalize
 		  sample-new-parameters) model-object)
-	 (no-samplers (length model-parameters-to-marginalize))
-	 (array-sampling-fun (--init--sampling-fn-array model-object model-parameters-to-marginalize)))
+	 ((&values array-sampling-fun no-samplers)
+	  (--init--sampling-fn-array model-object model-parameters-to-marginalize)))
     (labels ((sample-new-params ()
 	       (iter
     		 (for i from 0 below no-samplers)

@@ -19,10 +19,12 @@
    (log-of-all-priors :accessor log-of-all-priors :initarg :log-of-all-priors
 		      :initform (constantly 0d0))
    (sample-new-parameters :initarg :sample-new-parameters :accessor sample-new-parameters)
+   (new-sample? :accessor new-sample? :initarg :new-sampled? :initform t)
    (object-documentation :initarg :object-documentation :accessor object-documentation)
    (rng :accessor rng :initarg :rng
 	:initform (gsl-cffi:get-random-number-generator gsl-cffi::*mt19937_1999*))
    (model-function :reader model-function)
+   (cache :reader cache)
    (initargs :reader initargs)))
 
 
@@ -101,9 +103,13 @@
     (values names no-params)))
 
 
+(defun --init--cache (object no-params)
+  (setf (slot-value object 'cache)
+	(make-array (1+ no-params) :initial-element 0d0
+				   :element-type 'double-float)))
 
-
-(defun make-initialize-after-code (class-name model-function-name parameters documentation model-prior-code)
+(defun make-initialize-after-code (class-name model-function-name parameters documentation
+				   model-prior-code no-independent-parameters)
   `(defmethod initialize-instance :after ((object ,class-name) &rest initargs &key &allow-other-keys)
      (labels ((l-model-prior () ,(if model-prior-code model-prior-code '1d0)))
        (setf (slot-value object 'all-model-parameters) ',parameters
@@ -117,7 +123,8 @@
        (setf (slot-value object p) (coerce (slot-value object p)
 					   'double-float)))
      (--init--priors object)
-     (--init--sampling-functions object)))
+     (--init--sampling-functions object)
+     (--init--cache object ,no-independent-parameters)))
 
 
 (defun --acc--initialize (model no-iterations)
@@ -179,46 +186,39 @@
 	  new-object)))))
 
 
-(defun model-function-name (model-name)
-  (alexandria:symbolicate model-name '-model-function))
-
-(defun make-model-function (model-function-name independent-parameters
-			    model-parameters body)
-  (alexandria:with-gensyms (model-object)
-    `(defun ,model-function-name (,@independent-parameters ,model-object)
-       (declare (ignorable ,@independent-parameters)
-		(type double-float ,@independent-parameters))
-       (let-plus:let+ (((let-plus:&slots ,@model-parameters) ,model-object))
-	 (declare (type double-float ,@model-parameters))
-	 (progn ,@body)))))
-
-
-
-
 (defmacro define-bayesian-model ((name data-type &key model-prior-code documentation) 
 				 (&rest model-parameters)
 				 (likelihood-type &key equal-sigma-parameter)
-				 ((&rest independent-parameters) &body body))
+				 ((&rest independent-parameters) &body model-function-body))
   (let+ ((model-function-name (model-function-name name))
 	 (model-parameters (append
 			    model-parameters
 			    (if equal-sigma-parameter
-				`(,equal-sigma-parameter)))))
+				`(,equal-sigma-parameter))))
+	 ((&values model-function-code f_i-code y_i-code err_i-code
+		   y_i-f_i-code y_i-f_i/err_i-code f_i-name y_i-name err_i-name
+		   y_i-f_i-name y_i-f_i/err_i-name)
+	  (make-model-function-access-functions name (mapcar #'first model-parameters)
+						independent-parameters
+						model-function-body data-type))
+	 (no-independent-params (length independent-parameters)))
     (%check-likelihood-params likelihood-type equal-sigma-parameter)
     `(progn
        ,@(make-model-class-and-coby-object name model-parameters)
-       ,(make-initialize-after-code name model-function-name
-				    (mapcar #'first model-parameters)
-				    documentation
-				    model-prior-code)
+       ,(make-initialize-after-code name model-function-name (mapcar #'first model-parameters)
+				    documentation model-prior-code no-independent-params)
        ,(make-accumulator-method name)
-       ,(make-model-function model-function-name independent-parameters (mapcar #'first model-parameters) body)
+       ,model-function-code
+       ,f_i-code
+       ,y_i-code
+       ,err_i-code
+       ,y_i-f_i-code
+       ,y_i-f_i/err_i-code
        ,(make-likelihood-initializer name likelihood-type
-				     model-function-name 
-				     (bayesian-analysis:get-dependent-parameters data-type)
-				     (bayesian-analysis:get-error-parameters data-type)
 				     data-type
-				     (first equal-sigma-parameter)))))
+				     (first equal-sigma-parameter)
+				     f_i-name y_i-name err_i-name
+				     y_i-f_i-name y_i-f_i/err_i-name))))
 
 
  

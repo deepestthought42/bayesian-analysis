@@ -62,7 +62,8 @@
       (maximize x into max)
       (minimize x into min)
       (if (>= (/ summed no-iterations) confidance-level)
-	  (return (values min max))))))
+	  (return (values min max)))
+      (finally (error "Huh ? Couldn't calculate confidance interval.")))))
 
 
 
@@ -89,6 +90,7 @@
 	 ((&slots marginalized-parameters parameter-array
 		  no-iterations) iteration-accumulator)
 	 (end (if (not end) no-iterations end))
+	 (no-data-points (- no-iterations start))
 	 (pos (position parameter marginalized-parameters))
 	 ((&values bin-width no-bins) (%get-bin-width/no-bins parameter-array pos start end no-bins)))
     (if (not pos)
@@ -120,13 +122,13 @@
 	(for (x c) in-sequence binned with-index i)
 	(maximize c into max-counts)
 	(incf counts c)
-	(if (and first-time (>= counts (/ no-iterations 2)))
+	(if (and first-time (>= counts (/ no-data-points 2)))
 	    (setf first-time nil
 		  median (car (aref binned i))
 		  median-index i))
 	(finally
 	 (let+ (((&values min max)
-		 (%calculate-confidance binned no-iterations confidence-level)))
+		 (%calculate-confidance binned no-data-points confidence-level)))
 	   (return (values (map 'list #'identity binned)
 			   median min max max-counts))))))))
 

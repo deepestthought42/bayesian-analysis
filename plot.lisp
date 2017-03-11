@@ -3,10 +3,10 @@
 
 ;;; api
 
-(defgeneric plot-result-model (result &key))
-(defgeneric plot-iteration-values (result &key (params-to-plot) (start) end (every)))
+(defgeneric plot-result-model (parameter-result &key))
+(defgeneric plot-iteration-values (mcmc-result &key (params-to-plot) (start) end (every)))
 (defgeneric plot-data (data &key))
-(defgeneric plot-likelihood (result &key (start) end (every)))
+(defgeneric plot-likelihood (mcmc-result &key (start) end (every)))
 
 ;;; implementation
 
@@ -30,14 +30,14 @@
 		     (collect (aref (slot-value data slot) i))))))
      min-x max-x offset)))
 
-(defun %get-gnuplot-labels-for-1x/1y-and-title (data title xlabel ylabel offset)
+(defun %get-gnuplot-labels-for-1x/1y-and-title (x-slot y-slot title xlabel ylabel offset)
   (labels ((cmd (fmt-str &rest args)
 	       (apply #'format t fmt-str args)
 	     (mgl-gnuplot:command (apply #'format nil fmt-str args)))
 	   (iff (obj else) (if obj obj else)))
-    (let+ (((x) (iff xlabel (independent-parameters data)))
+    (let+ ((x (iff xlabel x-slot))
 	   (xx (format nil "~a - ~f" x offset))
-	   ((y) (iff ylabel (dependent-parameters data))))
+	   (y (iff ylabel y-slot)))
       (values xx y
 	      (iff title (format nil "~a_i[~a_i - ~f]" y x offset))))))
 
@@ -52,7 +52,7 @@
 			   independent-parameter
 			   other-parameters))
 	   ((&values x y title) (%get-gnuplot-labels-for-1x/1y-and-title
-				 data title xlabel ylabel offset))
+				 independent-parameter (first other-parameters) title xlabel ylabel offset))
 	   (options (format nil "with ~a  ~a title '~a'"
 			    plot-type style title)))
       (values
@@ -78,6 +78,15 @@
 			       (f 'independent-parameters)
 			       (list (f 'dependent-parameters))
 			       "points" style title xlabel ylabel))
+      ((and (= 2 (no-independent-parameters data))
+	    (= (no-error-parameters data)
+	       (no-dependent-parameters data)
+	       0))
+;       (mgl-gnuplot:command "set style fill transparent solid 0.35 noborder")
+       (get-plot-mgl-plot-data data
+			       (f 'independent-parameters)
+			       (cdr (slot-value data 'independent-parameters))
+			       "points solid " style title xlabel ylabel))
       (t (error "plotting of given data not supported.")))))
 
 (defmethod plot-data ((data data) &key (style "lc 7 pt 7 lw 1 pw 1")
@@ -102,7 +111,7 @@
 				   (style-options/data "pt 7")
 				   (style-options/input "with lines lt 3 lw 0.3 lc 0 title 'input input-model'")
 				   (style-options/result "with lines lw 1.5 lc 7 title 'result input-model'"))
-  (let+ (((&slots input-model data algorithm-result) result)
+  (let+ (((&slots model data algorithm-result) result)
 	 ((&slots input-model) algorithm-result)
 	 (fun (model-function input-model)))
     (let+ (((&values plot-data x-label y-label min-x max-x offset)
@@ -110,11 +119,11 @@
 	   ((&values model-input-data model-results-data)
 	    (if (= min-x max-x)
 		(values `((,(- min-x offset) ,(funcall fun min-x input-model)))
-			`((,(- min-x offset) ,(funcall fun min-x input-model))))
+			`((,(- min-x offset) ,(funcall fun min-x model))))
 		(iter
 		  (for x from min-x to max-x by (/ (- max-x min-x) no-steps))
 		  (collect (list (- x offset) (funcall fun x input-model)) into id)
-		  (collect (list (- x offset) (funcall fun x input-model)) into rd)
+		  (collect (list (- x offset) (funcall fun x model)) into rd)
 		  (finally (return (values id rd)))))))
       (labels ((cmd (fmt-str &rest args)
 		 (apply #'format t fmt-str args)
@@ -122,7 +131,6 @@
 	(cmd "set xrange [~f:~f]" (- min-x offset) (- max-x offset))
 	(cmd "set xlabel '~a'" x-label )
 	(cmd "set ylabel '~a'" y-label))
-      (break)
       (mgl-gnuplot:plot*
        (list
 	plot-data

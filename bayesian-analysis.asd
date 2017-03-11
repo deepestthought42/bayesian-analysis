@@ -18,6 +18,7 @@
 	       (:file "priors")
 	       (:file "sampling")
 	       (:file "likelihood")
+	       (:file "model-function")
                (:file "model")
 	       (:file "metropolis-hastings")
 	       (:file "odds")

@@ -123,7 +123,16 @@ this needs the fit-penning package to provide the konig model
 
 #+RESULTS:
 : *D*
-** TODO make 2d work
+
+
+** DONE introduce caching
+what determines if we use use a cached value ?
+- has sampling happened 
+- are the input parameters the same ?
+
+the dependent parameters need to be able to take more than one
+parameter for the 2d analysis case
+** STARTED make 2d work
 after loosing a lot of work by being stupid with git, let's do this again
 #+BEGIN_SRC lisp
 (in-package #:bayesian-analysis)
@@ -161,7 +170,7 @@ after loosing a lot of work by being stupid with git, let's do this again
   (mgl-gnuplot:with-session ()
     (cmd "reset")
     (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-    (ba:plot-parameter-distribution (ba:get-parameter-results *test-result* :start 1500 :no-bins 10) 'mu-1)
+    (ba:plot-parameter-distribution (ba:get-parameter-results *test-result* :start 1500 :no-bins 10) 'a-2)
     (cmd "unset output")))
 
 (defparameter *param-results* (ba:get-parameter-results *test-result* :start 5000 :no-bins 10))
@@ -180,6 +189,16 @@ after loosing a lot of work by being stupid with git, let's do this again
 aha! seems that when using a jeffreys prior, things go wrong ... mmmh,
 interesting. Oh well, if you take the log of a multiplication it
 becomes a sum.
+
+[2017-03-10 Fri 15:55] after playing around with it for a while, it
+seems to be really messy, so heres what I should 
+- introduce the ability to plot the resonance
+- see if it actually fits when the iteration values imply that it does
+  (I might be misleading myself)
+- if it does, investigate why it fits the "bad" data a lot better than
+  the good data
+- try fitting some hard resonances 
+  + this will proably involve a two isotope fit, how about we try that
 
 ** TODO testing
 - [ ] model comparison

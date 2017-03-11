@@ -1,7 +1,7 @@
 (in-package #:bayesian-analysis)
 
 
-(declaim (optimize (debug 3) (space 0) (safety 1) (speed 3)))
+(declaim (optimize (debug 3) (space 0) (safety 0) (speed 3)))
 
 
 
@@ -54,6 +54,7 @@
 	(if (= 0d0 val)
 	    most-negative-double-float
 	     val))))
+
 
 
 
