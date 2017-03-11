@@ -30,12 +30,15 @@
 
 
 (defgeneric initialize-likelihood (model data))
-
-
 (defgeneric copy-object (object))
 (defgeneric cleanup-object (object))
 (defgeneric get-slot-value (model slot))
 
+(defgeneric get-1d-plot-function (model)
+  (:method ((model model))
+    (let+ (((&slots model-function) model))
+      #'(lambda (x)
+	  (funcall model-function x model)))))
 
 
 

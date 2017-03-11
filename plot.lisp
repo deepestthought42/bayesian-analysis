@@ -82,11 +82,12 @@
 	    (= (no-error-parameters data)
 	       (no-dependent-parameters data)
 	       0))
-;       (mgl-gnuplot:command "set style fill transparent solid 0.35 noborder")
+       (mgl-gnuplot:command "set style fill transparent solid 0.1 noborder")
+       (mgl-gnuplot:command "set style circle radius 0.75")
        (get-plot-mgl-plot-data data
 			       (f 'independent-parameters)
 			       (cdr (slot-value data 'independent-parameters))
-			       "points solid " style title xlabel ylabel))
+			       "circles" style title xlabel ylabel))
       (t (error "plotting of given data not supported.")))))
 
 (defmethod plot-data ((data data) &key (style "lc 7 pt 7 lw 1 pw 1")
@@ -113,17 +114,18 @@
 				   (style-options/result "with lines lw 1.5 lc 7 title 'result input-model'"))
   (let+ (((&slots model data algorithm-result) result)
 	 ((&slots input-model) algorithm-result)
-	 (fun (model-function input-model)))
+	 (input-fun (ba:get-1d-plot-function input-model))
+	 (result-fun (ba:get-1d-plot-function model)))
     (let+ (((&values plot-data x-label y-label min-x max-x offset)
 	    (get-plot-mgl-data-depending-on-type data style-options/data "" nil nil))
 	   ((&values model-input-data model-results-data)
 	    (if (= min-x max-x)
-		(values `((,(- min-x offset) ,(funcall fun min-x input-model)))
-			`((,(- min-x offset) ,(funcall fun min-x model))))
+		(values `((,(- min-x offset) ,(funcall input-fun min-x)))
+			`((,(- min-x offset) ,(funcall result-fun min-x))))
 		(iter
 		  (for x from min-x to max-x by (/ (- max-x min-x) no-steps))
-		  (collect (list (- x offset) (funcall fun x input-model)) into id)
-		  (collect (list (- x offset) (funcall fun x model)) into rd)
+		  (collect (list (- x offset) (funcall input-fun x)) into id)
+		  (collect (list (- x offset) (funcall result-fun x)) into rd)
 		  (finally (return (values id rd)))))))
       (labels ((cmd (fmt-str &rest args)
 		 (apply #'format t fmt-str args)
@@ -169,7 +171,7 @@
       (iter
 	(for d in binned-data)
 	(incf (car d) (- median)))
-      (cmd "set style fill solid 0.1 noborder")
+      ;(cmd "set style fill solid 0.1 noborder")
       (cmd "set arrow from ~,10f,0 to ~,10f,~,10f nohead front lt 1 lw 2 lc 7" 0 0 (* 1.01 max-counts))
       (mgl-gnuplot:plot*
        (list

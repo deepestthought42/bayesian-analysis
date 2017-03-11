@@ -42,6 +42,7 @@
    #:default-debug-out
    #:plot-likelihood
    #:new-sample?
-   #:cache)
+   #:cache
+   #:get-1d-plot-function)
   (:nicknames ba))
 
