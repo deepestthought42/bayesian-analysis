@@ -22,9 +22,6 @@
   '((:gaussian gaussian-lambda)))
 
 
-(define-condition unknown-sampling-type (error)
-  ((type-not-known :accessor type-not-known :initarg :type-not-known
-		   :initform :unspecified)))
 
 
 (defun find-sampling-type (type &key (type-list *sampling-types*))

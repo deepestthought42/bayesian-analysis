@@ -12,6 +12,7 @@
 	       #:verbose)
   :serial t
   :components ((:file "package")
+	       (:file "bayesian-analysis")
 	       (:file "init")
 	       (:file "algorithm")
 	       (:file "data")
@@ -22,6 +23,5 @@
                (:file "model")
 	       (:file "metropolis-hastings")
 	       (:file "odds")
-	       (:file "bayesian-analysis")
 	       (:file "plot")))
 

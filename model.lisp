@@ -1,9 +1,6 @@
 (in-package #:bayesian-analysis)
 
 
-(define-condition initial-parameter-out-of-range ()
-  ((parameter :accessor parameter :initarg :parameter :initform :unknown)))
-
 
 (defclass model ()
   ((all-model-parameters :reader all-model-parameters)
@@ -60,10 +57,14 @@
 (defun w/suffix-slot-category (category name &key is-key
 					(list-of-suffixes *slot-type<->suffixes*))
   (alexandria:if-let (suffix (find category list-of-suffixes :key #'first))
-    (let ((name-with-suffix (alexandria:symbolicate name (second suffix))))
+    (let* ((*package* (symbol-package name))
+	   (name-with-suffix (alexandria:symbolicate name (second suffix))))
       (if is-key
 	  (alexandria:make-keyword name-with-suffix)
 	  name-with-suffix))))
+
+
+
 
 
 
