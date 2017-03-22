@@ -43,6 +43,9 @@
    #:plot-likelihood
    #:new-sample?
    #:cache
-   #:get-1d-plot-function)
+   #:get-1d-plot-function
+   #:varying/log-of-likelihood
+   #:constant/log-of-likelihood
+   #:get-prior-for-parameter)
   (:nicknames ba))
 

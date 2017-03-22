@@ -26,7 +26,11 @@
 
 
 ;;; api
-
+(defmethod get-parameter-description-text ((object data) parameter)
+    (alexandria:if-let (desc (find parameter (descriptions object) :key #'name))
+      (textual-descriptoin desc)
+      (error 'unknown-parameter :format-control "Unknown parameter: ~a"
+				:format-arguments (list parameter))))
 
 
 (defun make-all-slots (independent-parameters dependent-parameters error-parameters)

@@ -8,7 +8,9 @@
 
 ;;; api
 
-(defgeneric get-prior-for-parameter (model parameter))
+(defgeneric get-prior-for-parameter (model parameter)
+  (:documentation "Return the priors for parameter PAREMETER 
+=> log-of-prior, varying/log-of-prior, constant/log-of-prior"))
 
 ;;; data api
 
@@ -29,12 +31,7 @@
 
 (defgeneric get-parameter-description-text (object parameter)
   (:documentation "Get the textual description of the parameter
-  PARAMETER for data object OBJECT.")
-  (:method ((object data) parameter)
-    (alexandria:if-let (desc (find parameter (descriptions object) :key #'name))
-      (textual-descriptoin desc)
-      (error 'unknown-parameter :format-control "Unknown parameter: ~a"
-				:format-arguments (list parameter)))))
+  PARAMETER for data object OBJECT."))
 
 
 ;;; conditions
@@ -44,6 +41,9 @@
 		   :initform :unspecified)))
 
 (define-condition initial-parameter-out-of-range ()
+  ((parameter :accessor parameter :initarg :parameter :initform :unknown)))
+
+(define-condition parameter-out-of-range (error)
   ((parameter :accessor parameter :initarg :parameter :initform :unknown)))
 
 (define-condition unknown-sampling-type (error)

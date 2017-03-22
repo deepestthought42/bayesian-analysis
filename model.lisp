@@ -15,6 +15,8 @@
 		    :initform (constantly nil))
    (log-of-all-priors :accessor log-of-all-priors :initarg :log-of-all-priors
 		      :initform (constantly 0d0))
+   (log-of-all-priors-array :accessor log-of-all-priors-array
+			    :initarg :log-of-all-priors-array)
    (sample-new-parameters :initarg :sample-new-parameters :accessor sample-new-parameters)
    (new-sample? :accessor new-sample? :initarg :new-sampled? :initform t)
    (object-documentation :initarg :object-documentation :accessor object-documentation)
@@ -26,17 +28,18 @@
 
 
 
-(defgeneric initialize-likelihood (model data))
-(defgeneric copy-object (object))
-(defgeneric cleanup-object (object))
-(defgeneric get-slot-value (model slot))
 
-(defgeneric get-1d-plot-function (model)
-  (:method ((model model))
-    (let+ (((&slots model-function) model))
-      #'(lambda (x)
-	  (funcall model-function x model)))))
+(defmethod get-1d-plot-function ((model model))
+  (let+ (((&slots model-function) model))
+    #'(lambda (x)
+	(funcall model-function x model))))
 
+(defmethod get-prior-for-parameter ((model model) parameter)
+  (let+ (((&slots log-of-all-priors-array all-model-parameters) model)
+	 (i (position parameter all-model-parameters)))
+    (if (not i)
+	(error 'parameter-out-of-range :parameter parameter)
+	(elt log-of-all-priors-array i))))
 
 
 
@@ -206,23 +209,23 @@
 						independent-parameters
 						model-function-body data-type))
 	 (no-independent-params (length independent-parameters)))
-    (%check-likelihood-params likelihood-type equal-sigma-parameter)
-    `(progn
-       ,@(make-model-class-and-coby-object name model-parameters)
-       ,(make-initialize-after-code name model-function-name (mapcar #'first model-parameters)
-				    documentation model-prior-code no-independent-params)
-       ,(make-accumulator-method name)
-       ,model-function-code
-       ,f_i-code
-       ,y_i-code
-       ,err_i-code
-       ,y_i-f_i-code
-       ,y_i-f_i/err_i-code
-       ,(make-likelihood-initializer name likelihood-type
-				     data-type
-				     (first equal-sigma-parameter)
-				     f_i-name y_i-name err_i-name
-				     y_i-f_i-name y_i-f_i/err_i-name))))
+	(%check-likelihood-params likelihood-type equal-sigma-parameter)
+	`(progn
+	   ,@(make-model-class-and-coby-object name model-parameters)
+	   ,(make-initialize-after-code name model-function-name (mapcar #'first model-parameters)
+					documentation model-prior-code no-independent-params)
+	   ,(make-accumulator-method name)
+	   ,model-function-code
+	   ,f_i-code
+	   ,y_i-code
+	   ,err_i-code
+	   ,y_i-f_i-code
+	   ,y_i-f_i/err_i-code
+	   ,(make-likelihood-initializer name likelihood-type
+					 data-type
+					 (first equal-sigma-parameter)
+					 f_i-name y_i-name err_i-name
+					 y_i-f_i-name y_i-f_i/err_i-name))))
 
 
  

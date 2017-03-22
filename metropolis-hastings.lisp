@@ -8,6 +8,10 @@
 
 
 
+
+
+
+
 (defmethod solve-for-parameters ((algorithm metropolis-hastings) input-model data
 				 &key random-numbers )
   (labels ((!> (fun)

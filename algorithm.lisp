@@ -26,6 +26,7 @@
 
 
 
+
 (defclass mcmc-accumulator ()
   ((parameter-array :initarg :parameter-array :accessor parameter-array 
 		    :initform (error "Must initialize parameter-array."))
@@ -37,8 +38,7 @@
    (save-current-parameters :initarg :save-current-parameters :accessor save-current-parameters 
 			    :initform (error "Must initialize save-current-parameters."))
    (save-last-parameters :initarg :save-last-parameters :accessor save-last-parameters 
-			 :initform (error "Must initialize save-last-parameters."))
-))
+			 :initform (error "Must initialize save-last-parameters."))))
 
 
 

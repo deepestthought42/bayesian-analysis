@@ -83,7 +83,7 @@
 	       (no-dependent-parameters data)
 	       0))
        (mgl-gnuplot:command "set style fill transparent solid 0.1 noborder")
-       (mgl-gnuplot:command "set style circle radius 0.75")
+       (mgl-gnuplot:command "set style circle radius 0.5")
        (get-plot-mgl-plot-data data
 			       (f 'independent-parameters)
 			       (cdr (slot-value data 'independent-parameters))
@@ -161,7 +161,7 @@
 	       (collect (list i (aref parameter-array index-param i)))))
 	    (format nil "with steps title '~a'" p)))))))
 
-(defmethod plot-parameter-distribution ((result solved-parameters) parameter)
+(defmethod plot-parameter-distribution ((result solved-parameters) parameter &key title)
   (let+ (((&slots parameter-infos) result)
 	 (param (find parameter parameter-infos :key #'name))
 	 ((&slots binned-data median confidence-min confidence-max max-counts) param))
@@ -180,7 +180,9 @@
 			     (if (<= (- confidence-min median) x (- confidence-max median))
 				 (collect (list x c))))
 			   (format nil "u 1:2 with boxes lc 7 title ''"))
-	(mgl-gnuplot:data* binned-data (format nil "u 1:2 with histeps lc 0 title '~a'" parameter)))))))
+	(mgl-gnuplot:data* binned-data (format nil "u 1:2 with histeps lc 0 title '~a'"
+					       (if title title
+						   (format nil "~a - ~f" parameter median)))))))))
 
 
 

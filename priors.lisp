@@ -77,10 +77,6 @@
     (:certain certain-log-lambda :constant certain)))
 
 
-(define-condition unknown-prior-type (error)
-  ((type-not-known :accessor type-not-known :initarg :type-not-known
-		   :initform :unspecified)))
-
 
 (defun find-prior-type (type &key (type-list *prior-types*))
   (alexandria:if-let (type (find type type-list :key #'first))
@@ -185,7 +181,7 @@
 (defun --init--priors (model-object)
   (let+ (((&slots priors-in-range constant/log-of-priors varying/log-of-priors
 		  model-parameters-to-marginalize model-prior all-model-parameters
-		  log-of-all-priors)
+		  log-of-all-priors log-of-all-priors-array)
 	  model-object)
 	 (no-priors (length model-parameters-to-marginalize))
 	 (log-of-constant-priors (--init--get-log-constant-prior model-object model-parameters-to-marginalize))
@@ -216,4 +212,12 @@
       (setf priors-in-range #'priors-in-range
 	    log-of-all-priors #'log-of-all-priors
 	    constant/log-of-priors (constantly log-of-constant-priors)
-	    varying/log-of-priors #'log-of-varying-prior))))
+	    varying/log-of-priors #'log-of-varying-prior
+	    log-of-all-priors-array array-of-log-of-all-priors))))
+
+
+
+
+
+
+

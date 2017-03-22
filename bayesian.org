@@ -4,7 +4,8 @@
 (docker/start-sbcl-with-sly "penning-analysis" "deepestthought42/sbcl-1.3.15-bayesian-analysis:20170305"
                             '(("/home/renee/phd/src/penning-analysis.project/" "/src/")
                               ("/home/renee/phd/data_analysis/201607CD_In/" "/data_analysis/")
-                              ("/home/renee/phd/data_analysis/fitting_cross_check/" "/fitting_cross_check/"))
+                              ("/home/renee/phd/data_analysis/fitting_cross_check/" "/fitting_cross_check/")
+                              ("/home/renee/phd/data_analysis/2016_version_of_intrap/midas-files/" "/intrap/"))
                             4005 "/src/")
 #+END_SRC
 
@@ -124,7 +125,8 @@ this needs the fit-penning package to provide the konig model
 #+RESULTS:
 : *D*
 
-
+** TODO put public api in one place
+file:./bayesian.lisp is probably the place to put it
 ** DONE introduce caching
 what determines if we use use a cached value ?
 - has sampling happened 
@@ -199,7 +201,17 @@ seems to be really messy, so heres what I should
   the good data
 - try fitting some hard resonances 
   + this will proably involve a two isotope fit, how about we try that
+  + first, let's use an intrap fit
+  + also, fixing rho-m0 makes a lot of sense
+    
 
+
+
+*** it is working without the amplitude parameter
+which leaves me to believe that either the probability distribution is
+wrong or I need to play with the parameters more ...
+
+** TODO org output function
 ** TODO testing
 - [ ] model comparison
 - [ ] fits
@@ -216,4 +228,70 @@ let's see if I can do that already
 ** TODO make use of provided priors
 ** TODO introduce other types of error assumptions
 ** TODO plotting methods stuff diff. than xys
+** TODO straight integration
+meaning marginalization should also just work. The issue could be that
+I can't do the integral because double-float won't be able to hold
+numbers small enough
+
+let's start by looking at the pdf of a model solved with metropolis
+hastings:
+#+BEGIN_SRC lisp
+(in-package #:bayesian-analysis)
+
+
+(defparameter *test-file* (midas:read-mpet-midas-file "/data_analysis/midas-files/20160630/run277347.mid"))
+
+
+
+(defparameter *1d-result*
+  (ba:solve-for-parameters (make-instance 'ba:metropolis-hastings :no-iterations 50000)
+			   (apply #'make-instance 'fp:bayes-konig
+				  (fp:get-init-params-from-midas-file *test-file* 5d0
+								   :om-c-sample-sigma 0.5d0
+								   :tof-offset-sample-sigma 0.01d0
+								   :rho-m0-sample-sigma 1d-5))
+			   (ba:initialize-from-source 'fp:bayes-tof
+						      (tof-data:data *test-file* 1
+								     :min-tof 20d0 :max-tof 50d0
+								     :min-no-ions 1 :max-no-ions 1))))
+#+END_SRC
+
+that was easy enough
+*** integration of a single parameter
+- doing this in [[file:./integration.lisp]]
+- mathematically
+  #+BEGIN_EXPORT latex 
+  \begin{equation}
+  \label{eq:posterior-parameter}
+  p \left( x | X, I) \propto p( x|I\right) \int_{x_1}^{x_2}dx p(x|I)p(D|x, X, I)
+  \end{equation}
+  #+END_EXPORT
+- first implementation in integrate-over
+  - making use of existing likelihood/model
+  - is changing the model, so this should be copied before given to
+    integrate-over
+  - needed to add integration functionality to gsl-cffi
+  - need functionality to get prior for parameter
+    + making use of the fact that the array of priors and the list of
+      parameters should be in the same order
+    + not taking advantage of the fact that priors could be constant
+      and need not to be integrated over
+    + the function just integrates over all the given parameters
+
+- get-integration-fun-for-parameter:
+
+  given a function G(M) of the model M given in MODEL , this function
+  will return a function, denoted as F, that integrates over the
+  parameter given by PARAMETER, denoted by x, as follows:
+
+  \begin{equation}
+  \label{eq:1}
+  f \left( M \right) \rightarrow \int_{x_0}^{x_1} dx\ p\left( x | M, I \right) \cdot G(M)
+  \end{equation}
+
+- need to keep the array of priors to actually have them for straight
+  integration
+
 ** STARTED documentation
+* possible optimizations
+** TODO seperate priors in constant/varying when integrating
