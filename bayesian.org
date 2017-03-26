@@ -212,6 +212,14 @@ which leaves me to believe that either the probability distribution is
 wrong or I need to play with the parameters more ...
 
 ** TODO org output function
+** STARTED introduce gsl fitting as algorithnm to solve for parameters (and model comparison)
+*** logbook
+- let's start with branching this
+*** things to integrate
+- [ ] gsl functions
+- [ ] building wrapper functions to sent stuff to gsl
+- 
+
 ** TODO testing
 - [ ] model comparison
 - [ ] fits
