@@ -24,6 +24,11 @@
 	:initform (gsl-cffi:get-random-number-generator gsl-cffi::*mt19937_1999*))
    (model-function :reader model-function)
    (cache :reader cache)
+   (f_i :reader f_i)
+   (y_i :reader y_i)
+   (err_i :reader err_i)
+   (y_i-f_i :reader y_i-f_i)
+   (y_i-f_i/err_i :reader y_i-f_i/err_i)
    (initargs :reader initargs)))
 
 
@@ -116,15 +121,21 @@
 				   :element-type 'double-float)))
 
 (defun make-initialize-after-code (class-name model-function-name parameters documentation
-				   model-prior-code no-independent-parameters)
+				   model-prior-code no-independent-parameters
+				   f_i-name y_i-name err_i-name y_i-f_i-name y_i-f_i/err_i-name)
   `(defmethod initialize-instance :after ((object ,class-name) &rest initargs &key &allow-other-keys)
      (labels ((l-model-prior () ,(if model-prior-code model-prior-code '1d0)))
        (setf (slot-value object 'all-model-parameters) ',parameters
 	     (slot-value object 'model-parameters-to-marginalize) (--init--params-to-marginalize object ',parameters)
 	     (slot-value object 'model-prior) #'l-model-prior
 	     (slot-value object 'initargs) initargs
-	     (slot-value object 'model-function) #',model-function-name 
-	     (object-documentation object) ,documentation))
+	     (slot-value object 'model-function) #',model-function-name
+	     (slot-value object 'f_i) #',f_i-name
+	     (slot-value object 'y_i) #',y_i-name
+	     (slot-value object 'err_i) #',err_i-name
+	     (slot-value object 'y_i-f_i) #',y_i-f_i-name
+	     (slot-value object 'y_i-f_i/err_i) #',y_i-f_i/err_i-name
+	     (slot-value object 'object-documentation) ,documentation))
      (iter:iter
        (iter:for p in ',parameters)
        (setf (slot-value object p) (coerce (slot-value object p)
@@ -193,6 +204,7 @@
 	  new-object)))))
 
 
+
 (defmacro define-bayesian-model ((name data-type &key model-prior-code documentation) 
 				 (&rest model-parameters)
 				 (likelihood-type &key equal-sigma-parameter)
@@ -213,7 +225,8 @@
 	`(progn
 	   ,@(make-model-class-and-coby-object name model-parameters)
 	   ,(make-initialize-after-code name model-function-name (mapcar #'first model-parameters)
-					documentation model-prior-code no-independent-params)
+					documentation model-prior-code no-independent-params
+					f_i-name y_i-name err_i-name y_i-f_i-name y_i-f_i/err_i-name)
 	   ,(make-accumulator-method name)
 	   ,model-function-code
 	   ,f_i-code

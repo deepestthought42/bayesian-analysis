@@ -23,7 +23,7 @@
     ((a :default 0.5 :min -1 :max 1 :prior-type :uniform :sample-sigma 0.1d0)
      (b :prior-type :uniform :default -0.5)
      (c :prior-type :uniform :default 2 :min 2 :max 4 :sample-sigma 0.1d0))
-    (:d_i=f_i+gaussian_error_i)
+    (:d_i=f_i+gaussian_error_i_unequal_sigma)
     ((x) (+ (* a x) (* b x x) c)))
 
 (define-bayesian-model (linear 1d-data)

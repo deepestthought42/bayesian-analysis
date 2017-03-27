@@ -215,10 +215,57 @@ wrong or I need to play with the parameters more ...
 ** STARTED introduce gsl fitting as algorithnm to solve for parameters (and model comparison)
 *** logbook
 - let's start with branching this
+- then, where do I need to get the gsl functions from ?
+- ok, copied over the gsl cffi functions into gsl-cffi
+- let's start by moving the fit function over to bayesian
+- maybe I can actually separate the model creation from the fitting
+  part somehow ? Mee, probably takes too long right now
+- so, copyied over what -- in theory -- could be a complete set of the
+  functions I need ..
+- okay, problems when compiling models, seems to have to do with the
+  y_i function names, odd number of args to setf ? --> yup, that's true
+- ok, that is at least compiling now
+
 *** things to integrate
-- [ ] gsl functions
+- [X] gsl functions
 - [ ] building wrapper functions to sent stuff to gsl
-- 
+*** code
+**** starting to test the gsl fitting functionality
+#+BEGIN_SRC lisp
+(in-package #:bayesian-analysis)
+
+(define-data-class 1d-data (x "x") y err
+    (object (source t))
+  (setf x (make-array 4 :initial-contents '(-1d0 0d0 1d0 2d0)
+			:element-type 'double-float)
+	y (make-array 4 :initial-contents '(2.99d0 3.1d0 3.1d0 2.99d0)
+			:element-type 'double-float)
+	err (make-array 4 :initial-contents '(0.1d0 0.1d0 0.2d0 0.1d0)
+			  :element-type 'double-float)))
+
+
+
+(define-bayesian-model (quadratic 1d-data)
+    ((a :default 0.5 :min -1 :max 1 :prior-type :uniform :sample-sigma 0.1d0 :marginalize t)
+     (b :prior-type :uniform :default -0.5 :min -4 :max 4 :marginalize t)
+     (c :prior-type :uniform :default 2 :min 2 :max 4 :sample-sigma 0.1d0 :marginalize t))
+    (:d_i=f_i+gaussian_error_i_unequal_sigma)
+    ((x) (+ (* a x) (* b x x) c)))
+
+(define-bayesian-model (linear 1d-data)
+    ((a :default 1 :min -1 :max 1 :prior-type :uniform :sample-sigma 0.1d0)
+     (b :prior-type :uniform :default 2 :min 2 :max 4 :sample-sigma 0.1d0))
+    (:d_i=f_i+gaussian_error_i_unequal_sigma)
+    ((x)
+      (+ (* a x) b)))
+
+
+
+
+(%levenberg-marquardt-fit (make-instance 'quadratic) (initialize-from-source '1d-data t)
+			  1d-4 1d-4 100)
+
+#+END_SRC
 
 ** TODO testing
 - [ ] model comparison

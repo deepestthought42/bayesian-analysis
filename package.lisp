@@ -46,6 +46,8 @@
    #:get-1d-plot-function
    #:varying/log-of-likelihood
    #:constant/log-of-likelihood
-   #:get-prior-for-parameter)
+   #:get-prior-for-parameter
+   #:gsl-multifit-fdfsolver-alloc
+   #:no-parameters-to-marginalize)
   (:nicknames ba))
 

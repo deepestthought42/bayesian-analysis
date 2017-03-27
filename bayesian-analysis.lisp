@@ -58,3 +58,5 @@
   ((explanation :accessor explanation :initarg :explanation :initform "")
    (offending-symbol :accessor offending-symbol :initarg :offending-symbol :initform nil)))
 
+
+(define-condition no-parameters-to-marginalize (simple-condition) ())
