@@ -22,6 +22,7 @@
 	       (:file "model-function")
                (:file "model")
 	       (:file "metropolis-hastings")
+;	       (:file "fisher-information")
 	       (:file "odds")
 	       (:file "plot")))
 

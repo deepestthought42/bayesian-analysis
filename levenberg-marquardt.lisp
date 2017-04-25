@@ -4,6 +4,23 @@
 (declaim (optimize (debug 3) (speed 1) (space 0)))
 
 
+(defclass levenberg-marquardt (algorithm)
+  ((error-absolute :accessor error-abso :initarg :error-abso :initform 1d-6)
+   (error-relative :accessor error-relative :initarg :error-relative :initform 1d-6)
+   (max-iterations :accessor max-iterations :initarg :max-iterations :initform 100)))
+
+
+(defclass levenberg-marquardt-parameter-result (parameter-result)
+  ((result-model :initarg :result-model :accessor result-model 
+		 :initform (error "Must initialize result-model."))
+   (iterations :initarg :iterations :accessor iterations 
+	       :initform (error "Must initialize iterations."))
+   (gsl-test-delta-status :initarg :gsl-test-delta-status :accessor gsl-test-delta-status 
+			  :initform (error "Must initialize gsl-test-delta-status."))
+   (gsl-it-status :initarg :gsl-it-status :accessor gsl-it-status 
+		  :initform (error "Must initialize gsl-it-status."))))
+
+
 (defclass iteration ()
   ((no-iteration :accessor no-iteration :initarg :no-iteration :initform 0)
    (chi^2 :initarg :chi^2 :accessor chi^2 
@@ -15,8 +32,6 @@
    (covariance-matrix :initarg :covariance-matrix :accessor covariance-matrix 
 		      :initform (error "Must initialize covariance-matrix."))))
 
-(defclass fit-result ()
-  ((iterations :accessor iterations :initarg :iterations :initform nil)))
 
 
 (defun %analyze-iteration (i no-params solver data-count gsl-vector->params params)
@@ -134,41 +149,72 @@
   (funcall *cb-fit-lambda* x ldata f))
 
 
-(defun %levenberg-marquardt-fit (model data error-abs error-rel max-iterations)
-  (%check-input model)
+
+
+(defun %levenberg-marquardt-max-likelihood (algorithm model data)
   (gsl-cffi:set-error-handler (cffi:callback gsl-cffi:gsl-error-handler))
-  (let+ ((no-fit-params (length (model-parameters-to-marginalize model))) 
+  (let+ (((&slots error-absolute error-relative max-iterations) algorithm)
+	 (no-fit-params (length (model-parameters-to-marginalize model))) 
 	 (gsl-vector->params (make--gsl-vector->params model))
-	 (initial-params->gsl-vector (make--initial-params->gsl-vector model))
+	 (init-params->gsl-vector (make--initial-params->gsl-vector model))
 	 ((&slots no-data-points) data)
-	 (*cb-fit-lambda* (%create-gsl-fit-lambda gsl-vector->params model data)) ;; fixme: doesn't exist
-	 (/solver/ (gsl-cffi:gsl-multifit-fdfsolver-alloc gsl-cffi:*gsl-multifit-fdfsolver-lmsder*
-							  no-data-points no-fit-params))
-	 (initial-vector (gsl-cffi:gsl-vector-alloc no-fit-params)))
-    (unwind-protect
-	 (cffi:with-foreign-objects ((/fdf/ '(:struct gsl-cffi:fdf-struct)))
-	   (cffi:with-foreign-slots ((gsl-cffi:f gsl-cffi:df gsl-cffi:fdf
-						 gsl-cffi:n gsl-cffi:p
-						 gsl-cffi:params)
-				     /fdf/ (:struct gsl-cffi:fdf-struct))
-	     (setf gsl-cffi:f (cffi:callback cb-fit-function)
-		   gsl-cffi:df (cffi:null-pointer)
-		   gsl-cffi:fdf (cffi:null-pointer)
-		   gsl-cffi:n no-data-points
-		   gsl-cffi:p no-fit-params
-		   gsl-cffi:params (cffi:null-pointer)))
-	   (gsl-cffi:gsl-multifit-fdfsolver-set /solver/ /fdf/
-						(funcall initial-params->gsl-vector
-							 initial-vector model))
-	   (multiple-value-bind (fit-iterations gsl-test-delta-status gsl-it-status)
-	       (%fit-iteration no-fit-params no-data-points gsl-vector->params model
-			       /solver/ error-abs error-rel max-iterations)
-	     (let* ((fit-iterations (sort fit-iterations #'> :key #'no-iteration))
-		    (res (first fit-iterations))
-		    (m (model res))
-		    (c (slot-value res 'covariance-matrix)))
-		 (values m c gsl-test-delta-status gsl-it-status))))
-	(progn (gsl-cffi:gsl-multifit-fdfsolver-free /solver/)
-	       (gsl-cffi:gsl-vector-free initial-vector)))))
+	 (*cb-fit-lambda* (%create-gsl-fit-lambda gsl-vector->params model data)))
+    (gsl-cffi:with-fdf-solver (/solver/ no-data-points no-fit-params
+			       #'(lambda (gsl-vector) (funcall init-params->gsl-vector gsl-vector model))
+			       (cffi:callback cb-fit-function))
+      (multiple-value-bind (fit-iterations gsl-test-delta-status gsl-it-status)
+	  (%fit-iteration no-fit-params no-data-points gsl-vector->params model
+			  /solver/ error-absolute error-relative max-iterations)
+	(let* ((fit-iterations (sort fit-iterations #'> :key #'no-iteration))
+	       (res (first fit-iterations))
+	       (m (model res)))
+	  (make-instance 'levenberg-marquardt-parameter-result
+			 :algorithm algorithm
+			 :input-model model
+			 :data data
+			 :result-model m
+			 :iterations fit-iterations
+			 :gsl-test-delta-status gsl-test-delta-status
+			 :gsl-it-status gsl-it-status))))))
 
 
+
+
+(defmethod solve-for-parameters ((algorithm levenberg-marquardt) input-model data &key)
+  (%check-input input-model)
+  (%levenberg-marquardt-max-likelihood algorithm input-model data))
+
+
+(defun %laplace-approximate-posterior (model parameter no-bins)
+  ""
+  (labels ((val (category)
+	       (slot-value model (w/suffix-slot-category category parameter))))
+    (let+ ((min (val :min))
+	   (max (val :max))))))
+
+(defun %make-parameter-result ()
+  (let+ (((&values binned-posterior median min max max-counts)))
+    
+    (make-instance 'solved-parameter-result
+		   :name p
+		   :median median
+		   :confidence-level confidence-level
+		   :confidence-min min
+		   :confidence-max max
+		   :max-counts max-counts
+		   :binned-data binned-data)))
+
+(defmethod get-parameter-results ((result levenberg-marquardt-parameter-result)
+				  &key (confidence-level 0.69)
+				       (no-bins 50))
+  (let+ (((&slots input-model result-model data) result)
+	 ((&slots model-parameters-to-marginalize) input-model)
+	 (param-infos (iter
+			(for p in model-parameters-to-marginalize)
+			(%make-parameter-result )
+			)))
+    (make-instance 'solved-parameters
+		   :algorithm-result result
+		   :parameter-infos param-infos
+		   :data data
+		   :model model)))

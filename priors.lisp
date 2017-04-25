@@ -1,6 +1,6 @@
 (in-package #:bayesian-analysis)
 
-
+;; fixme: this needs to be refactored to be able to handle "inverse priors"
 
 
 
@@ -91,6 +91,8 @@
 (defun get-prior-function (type &key (type-list *prior-types*))
   (fourth (find-prior-type type :type-list type-list)))
 
+(defun get-inverse-prior-lambda (type &key (type-list *prior-types*))
+  (lambda () ))
 
 
 

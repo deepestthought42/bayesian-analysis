@@ -6,7 +6,9 @@
   lamba-list: (CATEGORY FORMAT-CONTROL &REST FORMAT-ARGS) to do debug
   output.")
 
-
+(defparameter *lev/marq-error-absolute* 1d-6)
+(defparameter *lev/marq-error-relative* 1d-6)
+(defparameter *lev/marq-no-max-iterations 100)
 
 
 (defun default-debug-out (level cat fmt-ctrl &rest fmt-args)

@@ -1,7 +1,7 @@
 * docker stuff
 ** start sly
 #+BEGIN_SRC emacs-lisp :results none
-(docker/start-sbcl-with-sly "penning-analysis" "deepestthought42/sbcl-1.3.15-bayesian-analysis:20170305"
+(docker/start-sbcl-with-sly "bayesian-analysis" "deepestthought42/sbcl-1.3.15-bayesian-analysis:20170425"
                             '(("/home/renee/phd/src/penning-analysis.project/" "/src/")
                               ("/home/renee/phd/data_analysis/201607CD_In/" "/data_analysis/")
                               ("/home/renee/phd/data_analysis/fitting_cross_check/" "/fitting_cross_check/")
@@ -225,10 +225,40 @@ wrong or I need to play with the parameters more ...
 - okay, problems when compiling models, seems to have to do with the
   y_i function names, odd number of args to setf ? --> yup, that's true
 - ok, that is at least compiling now
+- sending stuff to gsl seems to work, testing quadratic fitting
+- commited to git
+- next: need to make things nicer to access 
+- first, introduce global constants for error and max no. iterations
+- introduce wrapper around fit function and rename it to lev-mar-max-like ...
+- created macro in gsl-cffi to take care of the nitty gritty cffi stuff
+- seems to work, now collect proper results, model the class on
+  gsl-fitting for now
+- mmh, might actually be better to be inspired by what I do in
+  bayesian-analysis for now and then create code that bridges the two
+  worlds, i.e.: create gsl-fitting results from bayesian-analysis
+  objects to be used in the analysis code elsewhere
+- i should be able to use the api already set up for algoritms in
+  bayesian-analysis
+- may be, the existing algorithm.lisp in two parts to reflect the fact
+  that there will be two different algorithms
+- actually, it should fit into mcmc.lisp
+- ok, done that
+- now what ? --> build profile function
+- need fisher information matrix -> copy over from penning-analysis
+- actually, first: fulfill bayesian-analysis api
+- what is still to be fulfilled ? 
+- where do I find out ? -> bayesian.lisp ? *no*, not really
+- algorithm.lisp -> that looks better
+- ok, for the lapclacian approx., the maximization is done over prior
+  x likelihood, what does that mean for non uniform priors ? 
+- levenberg-marquardt is just maximizing the likelihood
+- assuming (I'm pretty sure) flat priors which sucks 
+- o.k., it should be possible to minimize $\ln p \left( \theta,\phi |
+  M,I \right) + \chi$ ..
 
 *** things to integrate
 - [X] gsl functions
-- [ ] building wrapper functions to sent stuff to gsl
+- [X] building wrapper functions to sent stuff to gsl
 *** code
 **** starting to test the gsl fitting functionality
 #+BEGIN_SRC lisp
@@ -253,8 +283,8 @@ wrong or I need to play with the parameters more ...
     ((x) (+ (* a x) (* b x x) c)))
 
 (define-bayesian-model (linear 1d-data)
-    ((a :default 1 :min -1 :max 1 :prior-type :uniform :sample-sigma 0.1d0)
-     (b :prior-type :uniform :default 2 :min 2 :max 4 :sample-sigma 0.1d0))
+    ((a :default 1 :min -1 :max 1 :prior-type :uniform :sample-sigma 0.1d0 :marginalize t)
+     (b :prior-type :uniform :default 2 :min 2 :max 4 :sample-sigma 0.1d0 :marginalize t))
     (:d_i=f_i+gaussian_error_i_unequal_sigma)
     ((x)
       (+ (* a x) b)))
@@ -262,8 +292,7 @@ wrong or I need to play with the parameters more ...
 
 
 
-(%levenberg-marquardt-fit (make-instance 'quadratic) (initialize-from-source '1d-data t)
-			  1d-4 1d-4 100)
+
 
 #+END_SRC
 
@@ -350,3 +379,7 @@ that was easy enough
 ** STARTED documentation
 * possible optimizations
 ** TODO seperate priors in constant/varying when integrating
+\begin{equation}
+\label{eq:2}
+J\ddot{\phi} + k\dot{\phi} + D\phi = F(t)
+\end{equation}

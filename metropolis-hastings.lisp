@@ -3,12 +3,114 @@
 
 (declaim (optimize (debug 3) (space 0) (safety 1) (speed 3)))
 
-(defclass metropolis-hastings (mcmc-algorithm) ())
 
 
+(defclass metropolis-hastings (algorithm)
+  ((no-iterations :accessor no-iterations
+		  :initarg :no-iterations :initform 1000)))
 
 
+(defclass mcmc-parameter-result (parameter-result)
+  ((no-accepted-iterations :initarg :no-accepted-iterations :accessor no-accepted-iterations 
+			   :initform 0)
+   (no-iterations :initarg :no-iterations :accessor no-iterations :initform 0)
+   (iteration-accumulator :initarg :iteration-accumulator :accessor iteration-accumulator 
+			  :initform (error "Must initialize iteration-accumulator."))))
 
+(defclass mcmc-accumulator ()
+  ((parameter-array :initarg :parameter-array :accessor parameter-array 
+		    :initform (error "Must initialize parameter-array."))
+   (no-iterations :initarg :no-iterations :accessor no-iterations 
+		  :initform (error "Must initialize no-iterations."))
+   (marginalized-parameters :initarg :marginalized-parameters :accessor marginalized-parameters 
+			    :initform (error "Must initialize marginalized-parameters."))
+   (no-marginalized-parameters :accessor no-marginalized-parameters :initarg :no-marginalized-parameters)
+   (save-current-parameters :initarg :save-current-parameters :accessor save-current-parameters 
+			    :initform (error "Must initialize save-current-parameters."))
+   (save-last-parameters :initarg :save-last-parameters :accessor save-last-parameters 
+			 :initform (error "Must initialize save-last-parameters."))))
+
+(defmethod initialize-instance :after ((object mcmc-accumulator) &key)
+  (let+ (((&slots no-marginalized-parameters marginalized-parameters) object))
+    (setf no-marginalized-parameters (length marginalized-parameters))))
+
+(defmethod bin-parameter-values ((result mcmc-parameter-result) parameter
+				 &key (no-bins 100) (start 0) end (confidence-level 0.69))
+  (let+ (((&slots iteration-accumulator) result)
+	 ((&slots marginalized-parameters parameter-array
+		  no-iterations) iteration-accumulator)
+	 (end (if (not end) no-iterations end))
+	 (no-data-points (- no-iterations start))
+	 (pos (position parameter marginalized-parameters))
+	 ((&values bin-width no-bins) (%get-bin-width/no-bins parameter-array pos start end no-bins)))
+    (if (not pos)
+	(error "Parameter: ~a was not marginalized over." parameter))
+    (let+ (((&values vals min max)
+	    (iter
+	      (for i from start below end)
+	      (for val = (* bin-width (floor (aref parameter-array pos i) bin-width)))
+	      (maximize val into max)
+	      (minimize val into min)
+	      (collect val into vals)
+	      (finally (return (values vals min max)))))
+	   (binned (make-array (1+ no-bins)
+				  :initial-contents
+				  (iter
+				    (for i from 0 to no-bins)
+				    (for x = (+ min (* (+ i 0.5) bin-width)))
+				    (collect (list x 0))))))
+      ;; binning
+      (iter
+	(for v in vals)
+	(incf (cadr (aref binned (round (- v min) bin-width)))))
+      ;; processing
+      (iter
+	(with median = (/ (- max min) 2))
+	(with first-time = t)
+	(with median-index = 0)
+	(with counts = 0)
+	(for (x c) in-sequence binned with-index i)
+	(maximize c into max-counts)
+	(incf counts c)
+	(if (and first-time (>= counts (/ no-data-points 2)))
+	    (setf first-time nil
+		  median (car (aref binned i))
+		  median-index i))
+	(finally
+	 (let+ (((&values min max)
+		 (%calculate-confidance binned no-data-points confidence-level)))
+	   (return (values (map 'list #'identity binned)
+			   median min max max-counts))))))))
+
+
+(defmethod get-parameter-results ((result mcmc-parameter-result)
+				  &key (start 0) end (confidence-level 0.69)
+				       (no-bins 50))
+  (let+ (((&slots iteration-accumulator input-model no-iterations data) result)
+	 ((&slots model-parameters-to-marginalize) input-model)
+	 (model (copy-object input-model))
+	 (end (if end end no-iterations))
+	 (param-infos (iter
+			(for p in model-parameters-to-marginalize)
+			(let+ (((&values binned-data median min max max-counts)
+				(bin-parameter-values result p
+						      :no-bins no-bins
+						      :start start :end end
+						      :confidence-level confidence-level)))
+			  (setf (slot-value model p) (coerce median 'double-float))
+			  (collect (make-instance 'solved-parameter-result
+						  :name p
+						  :median median
+						  :confidence-level confidence-level
+						  :confidence-min min
+						  :confidence-max max
+						  :max-counts max-counts
+						  :binned-data binned-data))))))
+    (make-instance 'solved-parameters
+		   :algorithm-result result
+		   :parameter-infos param-infos
+		   :data data
+		   :model model)))
 
 
 
