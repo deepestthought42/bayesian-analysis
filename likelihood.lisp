@@ -34,10 +34,8 @@
 when using :d_i=f_i+gaussian_error_1_equal_sigma type likelihood.")))))
 
 
-(defun create-likelihood-functions/gaussian/i-known-errors (model-object
-							    data-object
-							    y_i-f_i/err_i
-							    err_i)
+(defun create-likelihood-functions/gaussian/i-known-errors (model-object data-object
+							    y_i-f_i/err_i err_i)
   (declare (sb-ext:muffle-conditions sb-ext:compiler-note))
   (let+ ((no-data-points (no-data-points data-object))
 	 (N (coerce no-data-points 'double-float)))
@@ -69,10 +67,8 @@ when using :d_i=f_i+gaussian_error_1_equal_sigma type likelihood.")))))
       (make-instance 'likelihood :varying/log-of-likelihood #'varying
 				 :constant/log-of-likelihood #'constant))))
 
-(defun create-likelihood-functions/gaussian/1-unknown-error (model-object
-							     data-object
-							     equal-sigma-parameter
-							     y_i-f_i)
+(defun create-likelihood-functions/gaussian/1-unknown-error (model-object data-object
+							     equal-sigma-parameter y_i-f_i)
   (let+ ((no-data-points (no-data-points data-object))
 	 (N (coerce no-data-points 'double-float)))
     (labels ((varying ()

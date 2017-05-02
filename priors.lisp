@@ -2,7 +2,11 @@
 
 ;; fixme: this needs to be refactored to be able to handle "inverse priors"
 
+;; fixme: this needs some serious optimization, there is way too much
+;; unoptimized stuff in here
 
+
+(declaim (optimize (debug 3) (safety 1) (speed 3)))
 
 
 (defun jeffreys-log-lambda (min max object slot-name)
@@ -205,6 +209,10 @@
     		 (iter:multiply (funcall (aref array-of-log-of-varying-priros i))
 				into log-of-p)
     		 (finally (return log-of-p))))
+	     ;; fixme: there might be room for optimization here: for
+	     ;; example, one might consider to create a special
+	     ;; function at compile time (macroexpansion time) for
+	     ;; this
 	     (log-of-all-priors ()
     	       (iter
     		 (for i from 0 below no-of-all-priors)

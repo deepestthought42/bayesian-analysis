@@ -1,116 +1,43 @@
-* docker stuff
-** start sly
-#+BEGIN_SRC emacs-lisp :results none
-(docker/start-sbcl-with-sly "bayesian-analysis" "deepestthought42/sbcl-1.3.15-bayesian-analysis:20170425"
-                            '(("/home/renee/phd/src/penning-analysis.project/" "/src/")
-                              ("/home/renee/phd/data_analysis/201607CD_In/" "/data_analysis/")
-                              ("/home/renee/phd/data_analysis/fitting_cross_check/" "/fitting_cross_check/")
-                              ("/home/renee/phd/data_analysis/2016_version_of_intrap/midas-files/" "/intrap/"))
-                            4005 "/src/")
-#+END_SRC
 
-* TODOs
-** DONE introduce code to block writing slots
-min, max, prior, etc should be immutable
-** DONE method for plotting data
-** DONE look at metropolis hastings and the signs 
-** DONE make binning issues more sane
-- might be best to actually give a number of bins and then determine
-  the bin width by: (max - min)/no-bins
-  - how does that work for scale parameters though ?
-** DONE make konig work
-** DONE work on likelihood code
-the current way of doing it seems overly complicated, let's not use a
-macro and create functions instead
 
-** WAITING get model comparison working
-** STARTED make konig work faster
-this needs the fit-penning package to provide the konig model
-*** prerequisites
-- tof data
-  #+BEGIN_SRC lisp :results none
-  (in-package #:fit-penning)
-  (defparameter *d*
-    (tof-data:data (midas:read-mpet-midas-file "/data_analysis/midas-files/20160708/run280463.mid") 1
-                   :min-tof 20d0 :max-tof 50d0 :max-no-ions 2))
-#+END_SRC
-- parameters
-  #+BEGIN_SRC lisp :results none
-  (in-package #:fit-penning)
-  (defparameter *no-iterations* 20000)
-  #+END_SRC
-- and then some results to test stuff with
-  #+BEGIN_SRC lisp :results none
-  (in-package #:fit-penning)
 
-  (time
-   (defparameter *mcmc-konig-result/1*
-     (ba:solve-for-parameters (make-instance 'ba:metropolis-hastings :no-iterations *no-iterations*)
-                              (make-instance 'bayes-konig
-                                             :om-c (* 2 pi 5556259.7d0)
-                                             :om-c-min (* 2 pi (- 5556259.7d0 30d0))
-                                             :om-c-max (* 2 pi (+ 5556259.7d0 30d0))
-                                             :om-c-sample-sigma 0.1d0
-                                             :om-m (* 2 pi 6112.3d0)
-                                             :om-c-bin-width 0.01d0
-                                             :e-0-sample-sigma 1d-1
-                                             :e-0-bin-width 0.1d0
-                                             :tof-offset-sample-sigma 0.01d0
-                                             :tof-offset-bin-width 0.01
-                                             :rho-m0-bin-width 1d-6
-                                             :rho-m0-sample-sigma 1d-5
-                                             :q 13d0)
-                              (ba:initialize-from-source 'bayes-tof *d*))))
-  #+END_SRC
+(defclass )
 
-*** let's plot it to make sure it worked
-- iterations
-  #+BEGIN_SRC lisp :results none
-  (in-package #:fit-penning)
 
-  (labels ((cmd (fmt-str &rest args)
-             (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-    (mgl-gnuplot:with-session ()
-      (cmd "reset")
-      (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-      (ba:plot-iteration-values
-       ,*mcmc-konig-result/1*
-       :params-to-plot '(om-c)
-       :start 0 :every 10)
-      (cmd "unset output")))
-  #+END_SRC
-- distributions
-  #+BEGIN_SRC lisp :results none
-  (in-package #:fit-penning)
+(defmethod fisher-information-matrix ((model model) &key (epsilon long-float-epsilon))
+  (let+ (((&slots log-of-all-priors log)))
+    ()))
 
-  (labels ((cmd (fmt-str &rest args)
-               (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-      (mgl-gnuplot:with-session ()
-        (cmd "reset")
-        (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-        (ba:plot-parameter-distribution
-         (ba:get-parameter-results *mcmc-konig-result/1* :no-bins 25 :start 1000) 'om-c)
-        (cmd "unset output")))
-  #+END_SRC
+(defun test-approx-hessian ()
+  (let+ ((model (make-instance 'quadratic))
+	 (data (initialize-from-source '1d-data t))
+	 (result (solve-for-parameters (make-instance 'levenberg-marquardt) model data))
+	 ((&slots result-model iterations) result)
+	 (covar (covariance-matrix (first iterations)))
+	 ((&slots log-of-all-priors) result-model)
+	 (likelihood (initialize-likelihood result-model data))
+	 ((&slots varying/log-of-likelihood constant/log-of-likelihood) likelihood))
+    (labels ((fun ()
+	       (+
+		(funcall varying/log-of-likelihood)
+		(funcall constant/log-of-likelihood)
+		(funcall log-of-all-priors))))
+      (let ((res
+	      (math-utils:invert-matrix
+	       (hessian #'fun result-model
+			(get-optimal-delta result-model)))))
+	(values res
+		(iter outer
+		  (with (dim-j dim-k) = (array-dimensions covar))
+		  (for j from 0 below dim-j)
+		  (iter
+		    (for k from 0 below dim-k)
+		    (in outer
+			(collect (+ (aref covar j k)
+				    (aref res j k)))))))))))
 
-  #+RESULTS:
-- result model
-  #+BEGIN_SRC lisp :results none
-  (in-package #:fit-penning)
 
-  (labels ((cmd (fmt-str &rest args)
-             (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-    (mgl-gnuplot:with-session ()
-      (cmd "reset")
-      (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-      (ba:plot-result-model (ba:get-parameter-results
-  			   ,*mcmc-konig-result/1* 
-  			   :start 1500))
-      (cmd "unset output")))
-#+END_SRC
-*** let's get a profile base-line
-#+BEGIN_SRC lisp :package fit-penning
-(in-package #:fit-penning)
+(test-approx-hessian)
 
 
 
@@ -118,268 +45,3 @@ this needs the fit-penning package to provide the konig model
 
 
 
-
-
-#+END_SRC
-
-#+RESULTS:
-: *D*
-
-** TODO put public api in one place
-file:./bayesian.lisp is probably the place to put it
-** DONE introduce caching
-what determines if we use use a cached value ?
-- has sampling happened 
-- are the input parameters the same ?
-
-the dependent parameters need to be able to take more than one
-parameter for the 2d analysis case
-** STARTED make 2d work
-after loosing a lot of work by being stupid with git, let's do this again
-#+BEGIN_SRC lisp
-(in-package #:bayesian-analysis)
-
-
-
-
-
-(defparameter *data* (initialize-from-source '1d-gaussian t))
-
-(defparameter *test-result*
-  (solve-for-parameters (make-instance 'metropolis-hastings :no-iterations 5000)
-			(make-instance 'test-mean) *data*))
-
-(labels ((cmd (fmt-str &rest args)
-	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-  (mgl-gnuplot:with-session ()
-    (cmd "reset")
-    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-    (ba:plot-iteration-values *test-result*
-			      :params-to-plot '(a-1 a-2) :start 0 :every 1)
-    (cmd "unset output")))
-
-
-(labels ((cmd (fmt-str &rest args)
-	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-  (mgl-gnuplot:with-session ()
-    (cmd "reset")
-    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-    (ba:plot-likelihood *test-result* :start 0 :every 10)
-    (cmd "unset output")))
-
-(labels ((cmd (fmt-str &rest args)
-	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-  (mgl-gnuplot:with-session ()
-    (cmd "reset")
-    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-    (ba:plot-parameter-distribution (ba:get-parameter-results *test-result* :start 1500 :no-bins 10) 'a-2)
-    (cmd "unset output")))
-
-(defparameter *param-results* (ba:get-parameter-results *test-result* :start 5000 :no-bins 10))
-
-(labels ((cmd (fmt-str &rest args)
-	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-  (mgl-gnuplot:with-session ()
-    (cmd "reset")
-    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-    (plot-data *data*)
-    (cmd "unset output")))
-
-
-#+END_SRC
-
-aha! seems that when using a jeffreys prior, things go wrong ... mmmh,
-interesting. Oh well, if you take the log of a multiplication it
-becomes a sum.
-
-[2017-03-10 Fri 15:55] after playing around with it for a while, it
-seems to be really messy, so heres what I should 
-- introduce the ability to plot the resonance
-- see if it actually fits when the iteration values imply that it does
-  (I might be misleading myself)
-- if it does, investigate why it fits the "bad" data a lot better than
-  the good data
-- try fitting some hard resonances 
-  + this will proably involve a two isotope fit, how about we try that
-  + first, let's use an intrap fit
-  + also, fixing rho-m0 makes a lot of sense
-    
-
-
-
-*** it is working without the amplitude parameter
-which leaves me to believe that either the probability distribution is
-wrong or I need to play with the parameters more ...
-
-** TODO org output function
-** STARTED introduce gsl fitting as algorithnm to solve for parameters (and model comparison)
-*** logbook
-- let's start with branching this
-- then, where do I need to get the gsl functions from ?
-- ok, copied over the gsl cffi functions into gsl-cffi
-- let's start by moving the fit function over to bayesian
-- maybe I can actually separate the model creation from the fitting
-  part somehow ? Mee, probably takes too long right now
-- so, copyied over what -- in theory -- could be a complete set of the
-  functions I need ..
-- okay, problems when compiling models, seems to have to do with the
-  y_i function names, odd number of args to setf ? --> yup, that's true
-- ok, that is at least compiling now
-- sending stuff to gsl seems to work, testing quadratic fitting
-- commited to git
-- next: need to make things nicer to access 
-- first, introduce global constants for error and max no. iterations
-- introduce wrapper around fit function and rename it to lev-mar-max-like ...
-- created macro in gsl-cffi to take care of the nitty gritty cffi stuff
-- seems to work, now collect proper results, model the class on
-  gsl-fitting for now
-- mmh, might actually be better to be inspired by what I do in
-  bayesian-analysis for now and then create code that bridges the two
-  worlds, i.e.: create gsl-fitting results from bayesian-analysis
-  objects to be used in the analysis code elsewhere
-- i should be able to use the api already set up for algoritms in
-  bayesian-analysis
-- may be, the existing algorithm.lisp in two parts to reflect the fact
-  that there will be two different algorithms
-- actually, it should fit into mcmc.lisp
-- ok, done that
-- now what ? --> build profile function
-- need fisher information matrix -> copy over from penning-analysis
-- actually, first: fulfill bayesian-analysis api
-- what is still to be fulfilled ? 
-- where do I find out ? -> bayesian.lisp ? *no*, not really
-- algorithm.lisp -> that looks better
-- ok, for the lapclacian approx., the maximization is done over prior
-  x likelihood, what does that mean for non uniform priors ? 
-- levenberg-marquardt is just maximizing the likelihood
-- assuming (I'm pretty sure) flat priors which sucks 
-- o.k., it should be possible to minimize $\ln p \left( \theta,\phi |
-  M,I \right) + \chi$ ..
-
-*** things to integrate
-- [X] gsl functions
-- [X] building wrapper functions to sent stuff to gsl
-*** code
-**** starting to test the gsl fitting functionality
-#+BEGIN_SRC lisp
-(in-package #:bayesian-analysis)
-
-(define-data-class 1d-data (x "x") y err
-    (object (source t))
-  (setf x (make-array 4 :initial-contents '(-1d0 0d0 1d0 2d0)
-			:element-type 'double-float)
-	y (make-array 4 :initial-contents '(2.99d0 3.1d0 3.1d0 2.99d0)
-			:element-type 'double-float)
-	err (make-array 4 :initial-contents '(0.1d0 0.1d0 0.2d0 0.1d0)
-			  :element-type 'double-float)))
-
-
-
-(define-bayesian-model (quadratic 1d-data)
-    ((a :default 0.5 :min -1 :max 1 :prior-type :uniform :sample-sigma 0.1d0 :marginalize t)
-     (b :prior-type :uniform :default -0.5 :min -4 :max 4 :marginalize t)
-     (c :prior-type :uniform :default 2 :min 2 :max 4 :sample-sigma 0.1d0 :marginalize t))
-    (:d_i=f_i+gaussian_error_i_unequal_sigma)
-    ((x) (+ (* a x) (* b x x) c)))
-
-(define-bayesian-model (linear 1d-data)
-    ((a :default 1 :min -1 :max 1 :prior-type :uniform :sample-sigma 0.1d0 :marginalize t)
-     (b :prior-type :uniform :default 2 :min 2 :max 4 :sample-sigma 0.1d0 :marginalize t))
-    (:d_i=f_i+gaussian_error_i_unequal_sigma)
-    ((x)
-      (+ (* a x) b)))
-
-
-
-
-
-
-#+END_SRC
-
-** TODO testing
-- [ ] model comparison
-- [ ] fits
-** TODO create likelihood function for different assumptions
-*** [ ] only x values
-let's see if I can do that already 
-#+BEGIN_SRC lisp
-(in-package #:fit-penning)
-
-
-
-
-#+END_SRC
-** TODO make use of provided priors
-** TODO introduce other types of error assumptions
-** TODO plotting methods stuff diff. than xys
-** TODO straight integration
-meaning marginalization should also just work. The issue could be that
-I can't do the integral because double-float won't be able to hold
-numbers small enough
-
-let's start by looking at the pdf of a model solved with metropolis
-hastings:
-#+BEGIN_SRC lisp
-(in-package #:bayesian-analysis)
-
-
-(defparameter *test-file* (midas:read-mpet-midas-file "/data_analysis/midas-files/20160630/run277347.mid"))
-
-
-
-(defparameter *1d-result*
-  (ba:solve-for-parameters (make-instance 'ba:metropolis-hastings :no-iterations 50000)
-			   (apply #'make-instance 'fp:bayes-konig
-				  (fp:get-init-params-from-midas-file *test-file* 5d0
-								   :om-c-sample-sigma 0.5d0
-								   :tof-offset-sample-sigma 0.01d0
-								   :rho-m0-sample-sigma 1d-5))
-			   (ba:initialize-from-source 'fp:bayes-tof
-						      (tof-data:data *test-file* 1
-								     :min-tof 20d0 :max-tof 50d0
-								     :min-no-ions 1 :max-no-ions 1))))
-#+END_SRC
-
-that was easy enough
-*** integration of a single parameter
-- doing this in [[file:./integration.lisp]]
-- mathematically
-  #+BEGIN_EXPORT latex 
-  \begin{equation}
-  \label{eq:posterior-parameter}
-  p \left( x | X, I) \propto p( x|I\right) \int_{x_1}^{x_2}dx p(x|I)p(D|x, X, I)
-  \end{equation}
-  #+END_EXPORT
-- first implementation in integrate-over
-  - making use of existing likelihood/model
-  - is changing the model, so this should be copied before given to
-    integrate-over
-  - needed to add integration functionality to gsl-cffi
-  - need functionality to get prior for parameter
-    + making use of the fact that the array of priors and the list of
-      parameters should be in the same order
-    + not taking advantage of the fact that priors could be constant
-      and need not to be integrated over
-    + the function just integrates over all the given parameters
-
-- get-integration-fun-for-parameter:
-
-  given a function G(M) of the model M given in MODEL , this function
-  will return a function, denoted as F, that integrates over the
-  parameter given by PARAMETER, denoted by x, as follows:
-
-  \begin{equation}
-  \label{eq:1}
-  f \left( M \right) \rightarrow \int_{x_0}^{x_1} dx\ p\left( x | M, I \right) \cdot G(M)
-  \end{equation}
-
-- need to keep the array of priors to actually have them for straight
-  integration
-
-** STARTED documentation
-* possible optimizations
-** TODO seperate priors in constant/varying when integrating
-\begin{equation}
-\label{eq:2}
-J\ddot{\phi} + k\dot{\phi} + D\phi = F(t)
-\end{equation}

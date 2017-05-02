@@ -19,7 +19,62 @@
 
 ;; fixmee: need to reenter this in asd
 
-(defmethod get-fisher-information-matrix ((result result) &key (count-class 1))
+
+(defun get-optimal-delta (model &optional (epsilon long-float-epsilon epsilon-given-p))
+  (let+ (((&slots model-parameters-to-marginalize) model))
+    (iter
+      (for param in model-parameters-to-marginalize)
+      ;; fixme: should look up what happens if the value is below the
+      ;; machine accuracy
+      (collect (list param
+		     (if epsilon-given-p
+			 epsilon
+			 (* (expt epsilon 0.25d0)
+			    (slot-value model param))))))))
+
+
+(defun negative-hessian (func model params.delta)
+  "Calculate the negative hessian matrix for FUNC, where FUNC is a
+function object (closure) that depends on MODEL. PARAMS.DELTA is a
+list of (PARAMETER-SLOT DELTA), where PARAMETER-SLOT is the name of a
+slot that was marginalized and DELTA is the optimal delta for that
+variable.
+"
+  (let+ ((dim (length params.delta))
+	 ;; fixmee: type information here
+	 (ret-val (make-array (list dim dim))))
+    (labels ((param (i) (first (nth i params.delta)))
+	     (delta (i) (second (nth i params.delta)))
+	     (d (param delta)
+	       (incf (slot-value model param) delta))
+	     (h-j-k (param-j delta-j param-k delta-k)
+	       (let ((a 0d0) (b 0d0)
+		     (c 0d0) (d 0d0))
+		 (d param-j delta-j) (d param-k delta-k)
+		 (setf a (funcall func))
+		 (d param-k (- (* 2d0 delta-k)))
+		 (setf b (funcall func))
+		 (d param-j (- (* 2d0 delta-j)))
+		 (setf d (funcall func))
+		 (d param-k (* 2d0 delta-k))
+		 (setf c (funcall func))
+		 (/ (- (- a b)
+		       (- c d))
+		    (* 4d0 delta-j delta-k)))))
+      (iter
+	(for j from 0 below dim)
+	(iter
+	  (for k from j below dim)
+	  (let+ ((grad (h-j-k (param j) (delta j)
+			      (param k) (delta k))))
+	    (setf (aref ret-val j k) grad
+		  (aref ret-val k j) grad))))
+      ret-val)))
+
+
+
+(defmethod get-fisher-information-matrix ((result levenberg-marquardt-parameter-result)
+					  &key (count-class 1))
   ;; fixme: not taking count classes into account
   (declare (ignore count-class))
   (let+ (((individual-result &rest &ign) (individual-fit-results result))
@@ -34,3 +89,4 @@
 		   :matrix fisher-matrix
 		   :weighted-by-errors weighted-by-errors
 		   :determinant determinant)))
+

@@ -1,36 +1,37 @@
 (in-package #:bayesian-analysis)
 
 
-(declaim (optimize (debug 3) (speed 1) (space 0)))
+;(declaim (optimize (debug 3) (speed 1) (space 0)))
 
 
-(defclass levenberg-marquardt (algorithm)
-  ((error-absolute :accessor error-abso :initarg :error-abso :initform 1d-6)
-   (error-relative :accessor error-relative :initarg :error-relative :initform 1d-6)
-   (max-iterations :accessor max-iterations :initarg :max-iterations :initform 100)))
+(eval-when (:load-toplevel :compile-toplevel)
+  (defclass levenberg-marquardt (algorithm)
+    ((error-absolute :accessor error-abso :initarg :error-abso :initform 1d-6)
+     (error-relative :accessor error-relative :initarg :error-relative :initform 1d-6)
+     (max-iterations :accessor max-iterations :initarg :max-iterations :initform 100)))
 
 
-(defclass levenberg-marquardt-parameter-result (parameter-result)
-  ((result-model :initarg :result-model :accessor result-model 
-		 :initform (error "Must initialize result-model."))
-   (iterations :initarg :iterations :accessor iterations 
-	       :initform (error "Must initialize iterations."))
-   (gsl-test-delta-status :initarg :gsl-test-delta-status :accessor gsl-test-delta-status 
-			  :initform (error "Must initialize gsl-test-delta-status."))
-   (gsl-it-status :initarg :gsl-it-status :accessor gsl-it-status 
-		  :initform (error "Must initialize gsl-it-status."))))
+  (defclass levenberg-marquardt-parameter-result (parameter-result)
+    ((result-model :initarg :result-model :accessor result-model 
+		   :initform (error "Must initialize result-model."))
+     (iterations :initarg :iterations :accessor iterations 
+		 :initform (error "Must initialize iterations."))
+     (gsl-test-delta-status :initarg :gsl-test-delta-status :accessor gsl-test-delta-status 
+			    :initform (error "Must initialize gsl-test-delta-status."))
+     (gsl-it-status :initarg :gsl-it-status :accessor gsl-it-status 
+		    :initform (error "Must initialize gsl-it-status."))))
 
 
-(defclass iteration ()
-  ((no-iteration :accessor no-iteration :initarg :no-iteration :initform 0)
-   (chi^2 :initarg :chi^2 :accessor chi^2 
-	  :initform (error "Must initialize chi^2."))
-   (d-o-f :initarg :d-o-f :accessor d-o-f 
-	  :initform (error "Must initialize d-o-f."))
-   (model :initarg :model :accessor model 
-	  :initform (error "Must initialize model."))
-   (covariance-matrix :initarg :covariance-matrix :accessor covariance-matrix 
-		      :initform (error "Must initialize covariance-matrix."))))
+  (defclass iteration ()
+    ((no-iteration :accessor no-iteration :initarg :no-iteration :initform 0)
+     (chi^2 :initarg :chi^2 :accessor chi^2 
+	    :initform (error "Must initialize chi^2."))
+     (d-o-f :initarg :d-o-f :accessor d-o-f 
+	    :initform (error "Must initialize d-o-f."))
+     (model :initarg :model :accessor model 
+	    :initform (error "Must initialize model."))
+     (covariance-matrix :initarg :covariance-matrix :accessor covariance-matrix 
+			:initform (error "Must initialize covariance-matrix.")))))
 
 
 
@@ -93,14 +94,14 @@
       (finally (return (values it-res (if status status 0) status-it))))))
 
 (defun %create-gsl-fit-lambda (gsl-vector->params model data)
-  (let+ (((&slots y_i-f_i) model)
+  (let+ (((&slots y_i-f_i/err_i) model)
 	 ((&slots no-data-points) data))
     #'(lambda (x ldata f)
 	(declare (ignore ldata))
 	(funcall gsl-vector->params x model)
 	(iter:iter
 	  (iter:for i from 0 below no-data-points)
-	  (for Q = (funcall y_i-f_i i model data))
+	  (for Q = (funcall y_i-f_i/err_i i model data))
 	  (gsl-cffi:gsl-vector-set f i Q))
 	;; well, if something goes wrong here we catch it on the lisp
 	;; side, so:
@@ -191,7 +192,7 @@
 	       (slot-value model (w/suffix-slot-category category parameter))))
     (let+ ((min (val :min))
 	   (max (val :max))))))
-
+#+nil
 (defun %make-parameter-result ()
   (let+ (((&values binned-posterior median min max max-counts)))
     
@@ -203,7 +204,7 @@
 		   :confidence-max max
 		   :max-counts max-counts
 		   :binned-data binned-data)))
-
+#+nil
 (defmethod get-parameter-results ((result levenberg-marquardt-parameter-result)
 				  &key (confidence-level 0.69)
 				       (no-bins 50))
