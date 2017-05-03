@@ -3,7 +3,7 @@
 
 ;;; api
 
-(defgeneric plot-result-model (parameter-result &key))
+(defgeneric plot-result-model (optimization-result &key))
 (defgeneric plot-iteration-values (mcmc-result &key (params-to-plot) (start) end (every)))
 (defgeneric plot-data (data &key))
 (defgeneric plot-likelihood (mcmc-result &key (start) end (every)))
@@ -107,7 +107,7 @@
 
 
 
-(defmethod plot-result-model ((result solved-parameters)
+(defmethod plot-result-model ((result optimized-parameters)
 			      &key (no-steps 1000)
 				   (style-options/data "pt 7")
 				   (style-options/input "with lines lt 3 lw 0.3 lc 0 title 'input input-model'")
@@ -142,7 +142,7 @@
 
 
 
-(defmethod plot-iteration-values ((result mcmc-parameter-result)
+(defmethod plot-iteration-values ((result mcmc-optimization-result)
 				  &key (params-to-plot) (start 0) (end) (every 1))
   (let+ (((&slots iteration-accumulator) result)
 	 ((&slots marginalized-parameters parameter-array no-iterations) iteration-accumulator)
@@ -161,7 +161,7 @@
 	       (collect (list i (aref parameter-array index-param i)))))
 	    (format nil "with steps title '~a'" p)))))))
 
-(defmethod plot-parameter-distribution ((result solved-parameters) parameter &key title)
+(defmethod plot-parameter-distribution ((result optimized-parameters) parameter &key title)
   (let+ (((&slots parameter-infos) result)
 	 (param (find parameter parameter-infos :key #'name))
 	 ((&slots binned-data median confidence-min confidence-max max-counts) param))
@@ -188,7 +188,7 @@
 
 
 
-(defmethod plot-likelihood ((result mcmc-parameter-result) &key (start 0) (end) (every 1))
+(defmethod plot-likelihood ((result mcmc-optimization-result) &key (start 0) (end) (every 1))
   (let+ (((&slots iteration-accumulator input-model data) result)
 	 (new-model (copy-object input-model))
 	 (likelihood (initialize-likelihood new-model data))

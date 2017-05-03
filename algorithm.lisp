@@ -4,7 +4,7 @@
 (defclass algorithm () ())
 
 
-(defclass parameter-result ()
+(defclass optimization-result ()
   ((algorithm :initarg :algorithm :accessor algorithm 
 	      :initform (error "Must initialize algorithm."))
    (data :initarg :data :accessor data 
@@ -16,7 +16,7 @@
 
 
 
-(defgeneric solve-for-parameters (algorithm model data &key))
+(defgeneric find-optimum (algorithm model data &key))
 
 
 
@@ -57,7 +57,7 @@
 
 
 
-(defclass solved-parameters ()
+(defclass optimized-parameters ()
   ((model :initarg :model :accessor model 
 	  :initform (error "Must initialize model."))
    (parameter-infos :initarg :parameter-infos :accessor parameter-infos 
@@ -68,7 +68,7 @@
 	 :initform (error "Must initialize data."))))
 
 
-(defclass solved-parameter-result ()
+(defclass parameter-distribution ()
   ((name :initarg :name :accessor name 
 	 :initform (error "Must initialize name."))
    (median :initarg :median :accessor median 

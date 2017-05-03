@@ -2,9 +2,7 @@
 
 
 (defclass fisher-information ()
-  ((covariance-matrix-from-gsl :initarg :covariance-matrix-from-gsl :accessor covariance-matrix-from-gsl 
-			       :initform (error "Must initialize covariance-matrix-from-gsl."))
-   (matrix :initarg :matrix :accessor matrix 
+  ((matrix :initarg :matrix :accessor matrix 
 	   :initform (error "Must initialize matrix."))
    (parameter-names :initarg :parameter-names :accessor parameter-names 
 		    :initform (error "Must initialize parameter-names."))
@@ -33,12 +31,37 @@
 			    (slot-value model param))))))))
 
 
-(defun negative-hessian (func model params.delta)
+(defun hessian (func model params.delta &optional (sign 1d0))
   "Calculate the negative hessian matrix for FUNC, where FUNC is a
 function object (closure) that depends on MODEL. PARAMS.DELTA is a
 list of (PARAMETER-SLOT DELTA), where PARAMETER-SLOT is the name of a
 slot that was marginalized and DELTA is the optimal delta for that
 variable.
+
+The calculation is based on h_{3,j,k}, eq. 9, in: 
+
+
+Statistical Applications of the Complex-Step Method of Numerical Differentiation
+Author(s): Martin S. Ridout
+Source: The American Statistician, Vol. 63, No. 1 (Feb., 2009), pp. 66-74
+
+For reference, the formula itself is:
+
+\begin{equation}
+\label{eq:approximate-hessian}
+h_{j,k}=-\frac{1}{4\delta_j\delta_k}
+        \left\{\left[
+                 f \left(\mathbf{\theta}+\delta_{j}\mathbf{e}_j + \delta_k\mathbf{e}_k \right)
+                 - f\left(\mathbf{\theta}+\delta_{j}\mathbf{e}_j - \delta_k\mathbf{e}_k \right)
+                \right] 
+                -
+                \left[
+                 f \left(\mathbf{\theta}-\delta_{j}\mathbf{e}_j + \delta_k\mathbf{e}_k \right)
+                 - f\left(\mathbf{\theta}-\delta_{j}\mathbf{e}_j - \delta_k\mathbf{e}_k \right)
+                \right] 
+        \right\}
+\end{equation}
+
 "
   (let+ ((dim (length params.delta))
 	 ;; fixmee: type information here
@@ -58,9 +81,10 @@ variable.
 		 (setf d (funcall func))
 		 (d param-k (* 2d0 delta-k))
 		 (setf c (funcall func))
-		 (/ (- (- a b)
-		       (- c d))
-		    (* 4d0 delta-j delta-k)))))
+		 (* sign
+		    (/ (- (- a b)
+			  (- c d))
+		       (* 4d0 delta-j delta-k))))))
       (iter
 	(for j from 0 below dim)
 	(iter
@@ -72,21 +96,41 @@ variable.
       ret-val)))
 
 
+(defmethod get-fisher-information-matrix ((result levenberg-marquardt-result))
+  "Return the Fisher-information matrix for optimization result
+RESULT. Here the FIM is defined as:
 
-(defmethod get-fisher-information-matrix ((result levenberg-marquardt-parameter-result)
-					  &key (count-class 1))
-  ;; fixme: not taking count classes into account
-  (declare (ignore count-class))
-  (let+ (((individual-result &rest &ign) (individual-fit-results result))
-	 ((&slots fit-model weighted-by-errors) result)
-	 ((&slots gf:no-fit-params gf:slots-to-fit) fit-model)
-	 (covariance-matrix (gf:result-covar individual-result))
-	 ((&values fisher-matrix determinant) (math-utils:invert-matrix covariance-matrix)))
-    (make-instance 'fisher-information
-		   :covariance-matrix-from-gsl covariance-matrix
-		   :no-parameters gf:no-fit-params
-		   :parameter-names gf:slots-to-fit
-		   :matrix fisher-matrix
-		   :weighted-by-errors weighted-by-errors
-		   :determinant determinant)))
+  \begin{equation}
+  \label{eq:fisher-information}
+  \mathrm{I}_{\alpha\beta} =
+     -\frac{\partial^2}{\partial\theta_{\alpha}\partial\theta_{\beta}}
+        \ln \left[ p(\theta|M,I)\mathcal{L}(\theta) \right]
+  \end{equation}
 
+The Hessian is approximated (see HESSIAN) using EPSILON as finite
+difference (defaults to machine-epsilon).
+
+"
+  (let+ (((&slots model data) result)
+	 ((&slots log-of-all-priors) model)
+	 (likelihood (initialize-likelihood model data))
+	 ((&slots varying/log-of-likelihood constant/log-of-likelihood) likelihood))
+    (labels ((fun ()
+	       (+
+		(funcall varying/log-of-likelihood)
+		(funcall constant/log-of-likelihood)
+		(funcall log-of-all-priors))))
+      (hessian #'fun model (get-optimal-delta model)))))
+
+
+#+nil
+(progn
+  (defun test-fisher-information-matrix ()
+    (let+ ((model (make-instance 'linear))
+	   (data (initialize-from-source '1d-data t))
+	   (result
+	    (find-optimum (make-instance 'levenberg-marquardt) model data))
+	   (matrix (get-fisher-information-matrix result)))
+      matrix))
+
+  (test-fisher-information-matrix))

@@ -35,7 +35,7 @@
    #:define-bayesian-model
    #:define-data-class
    #:metropolis-hastings
-   #:solve-for-parameters
+   #:find-optimum
    #:get-parameter-results
    #:plot-parameter-distribution
    #:*debug-function*

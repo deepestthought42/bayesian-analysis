@@ -43,7 +43,7 @@
     (cmd "reset")
     (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
     (plot-iteration-values
-     (solve-for-parameters (make-instance 'metropolis-hastings :no-iterations 50000)
+     (optimize (make-instance 'metropolis-hastings :no-iterations 50000)
 			   (make-instance 'quadratic)
 			   (initialize-from-source '1d-data t))
      :every 1 :end 5000) 
@@ -57,7 +57,7 @@
     (cmd "set terminal x11 enhanced font 'Georgia,12' dashed")
     (plot-parameter-distribution
      (get-parameter-results
-      (solve-for-parameters (make-instance 'metropolis-hastings :no-iterations 500000)
+      (optimize (make-instance 'metropolis-hastings :no-iterations 500000)
 			    (make-instance 'quadratic :b-bin-width 0.01 :a-bin-width 0.01 :c-bin-width 0.004)
 			    (initialize-from-source '1d-data t))
       :confidence-level 0.92
@@ -74,7 +74,7 @@
     (cmd "set terminal wxt enhanced font 'Georgia,12' dashed")
     (plot-result-model
      (get-parameter-results
-      (solve-for-parameters (make-instance 'metropolis-hastings :no-iterations 100000)
+      (optimize (make-instance 'metropolis-hastings :no-iterations 100000)
 			    (make-instance 'quadratic :b-bin-width 0.001 :a-bin-width 0.001)
 			    (initialize-from-source '1d-data t))
       :start 200)) 
@@ -93,12 +93,12 @@
 
 
 (let+ ((r1 (get-parameter-results
-	    (solve-for-parameters
+	    (optimize
 	     (make-instance 'metropolis-hastings :no-iterations 100000)
 	     (make-instance 'linear :b-bin-width 0.005 :a-bin-width 0.005)
 	     (initialize-from-source '1d-data t)) :start 200))
        (r2 (get-parameter-results
-	    (solve-for-parameters
+	    (optimize
 	     (make-instance 'metropolis-hastings :no-iterations 100000)
 	     (make-instance 'quadratic :b-bin-width 0.005 :a-bin-width 0.005)
 	     (initialize-from-source '1d-data t)) :start 200))

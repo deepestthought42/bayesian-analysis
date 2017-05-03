@@ -9,6 +9,7 @@
                #:let-plus
 	       #:gsl-cffi
 	       #:mgl-gnuplot
+	       #:math-utils
 	       #:verbose)
   :serial t
   :components ((:file "package")
@@ -22,7 +23,8 @@
 	       (:file "model-function")
                (:file "model")
 	       (:file "metropolis-hastings")
-;	       (:file "fisher-information")
+	       (:file "levenberg-marquardt")
+	       (:file "fisher-information")
 	       (:file "odds")
 	       (:file "plot")))
 

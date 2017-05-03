@@ -10,7 +10,7 @@
 		  :initarg :no-iterations :initform 1000)))
 
 
-(defclass mcmc-parameter-result (parameter-result)
+(defclass mcmc-optimization-result (optimization-result)
   ((no-accepted-iterations :initarg :no-accepted-iterations :accessor no-accepted-iterations 
 			   :initform 0)
    (no-iterations :initarg :no-iterations :accessor no-iterations :initform 0)
@@ -34,7 +34,7 @@
   (let+ (((&slots no-marginalized-parameters marginalized-parameters) object))
     (setf no-marginalized-parameters (length marginalized-parameters))))
 
-(defmethod bin-parameter-values ((result mcmc-parameter-result) parameter
+(defmethod bin-parameter-values ((result mcmc-optimization-result) parameter
 				 &key (no-bins 100) (start 0) end (confidence-level 0.69))
   (let+ (((&slots iteration-accumulator) result)
 	 ((&slots marginalized-parameters parameter-array
@@ -83,7 +83,7 @@
 			   median min max max-counts))))))))
 
 
-(defmethod get-parameter-results ((result mcmc-parameter-result)
+(defmethod get-parameter-results ((result mcmc-optimization-result)
 				  &key (start 0) end (confidence-level 0.69)
 				       (no-bins 50))
   (let+ (((&slots iteration-accumulator input-model no-iterations data) result)
@@ -98,7 +98,7 @@
 						      :start start :end end
 						      :confidence-level confidence-level)))
 			  (setf (slot-value model p) (coerce median 'double-float))
-			  (collect (make-instance 'solved-parameter-result
+			  (collect (make-instance 'parameter-distribution
 						  :name p
 						  :median median
 						  :confidence-level confidence-level
@@ -106,7 +106,7 @@
 						  :confidence-max max
 						  :max-counts max-counts
 						  :binned-data binned-data))))))
-    (make-instance 'solved-parameters
+    (make-instance 'optimized-parameters
 		   :algorithm-result result
 		   :parameter-infos param-infos
 		   :data data
@@ -114,8 +114,8 @@
 
 
 
-(defmethod solve-for-parameters ((algorithm metropolis-hastings) input-model data
-				 &key random-numbers )
+(defmethod find-optimum ((algorithm metropolis-hastings) input-model data
+			 &key random-numbers )
   (labels ((!> (fun)
 	     (declare (type (function () t) fun))
 	     (funcall fun))
@@ -168,7 +168,7 @@
 	      (setf denominator nominator)))
 
 	(finally (return
-		   (make-instance 'mcmc-parameter-result
+		   (make-instance 'mcmc-optimization-result
 				  :algorithm algorithm
 				  :no-accepted-iterations accepted-iterations
 				  :no-iterations no-iterations

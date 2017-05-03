@@ -14,6 +14,10 @@
 
 ;;; data api
 
+(defgeneric initialize-likelihood (model data)
+  (:documentation "Initialize likelihood object from model object
+  MODEL and data object DATA."))
+
 (defgeneric initialize-from-source (data-type source)
   (:documentation "Initialize an object of type DATA-TYPE form soure SOURCE."))
 
@@ -32,6 +36,8 @@
 (defgeneric get-parameter-description-text (object parameter)
   (:documentation "Get the textual description of the parameter
   PARAMETER for data object OBJECT."))
+
+
 
 
 ;;; conditions

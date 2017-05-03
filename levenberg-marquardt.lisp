@@ -11,9 +11,9 @@
      (max-iterations :accessor max-iterations :initarg :max-iterations :initform 100)))
 
 
-  (defclass levenberg-marquardt-parameter-result (parameter-result)
-    ((result-model :initarg :result-model :accessor result-model 
-		   :initform (error "Must initialize result-model."))
+  (defclass levenberg-marquardt-result (optimization-result)
+    ((model :initarg :model :accessor model 
+	    :initform (error "Must initialize result-model."))
      (iterations :initarg :iterations :accessor iterations 
 		 :initform (error "Must initialize iterations."))
      (gsl-test-delta-status :initarg :gsl-test-delta-status :accessor gsl-test-delta-status 
@@ -169,11 +169,11 @@
 	(let* ((fit-iterations (sort fit-iterations #'> :key #'no-iteration))
 	       (res (first fit-iterations))
 	       (m (model res)))
-	  (make-instance 'levenberg-marquardt-parameter-result
+	  (make-instance 'levenberg-marquardt-result
 			 :algorithm algorithm
 			 :input-model model
 			 :data data
-			 :result-model m
+			 :model m
 			 :iterations fit-iterations
 			 :gsl-test-delta-status gsl-test-delta-status
 			 :gsl-it-status gsl-it-status))))))
@@ -181,11 +181,11 @@
 
 
 
-(defmethod solve-for-parameters ((algorithm levenberg-marquardt) input-model data &key)
+(defmethod find-optimum ((algorithm levenberg-marquardt) input-model data &key)
   (%check-input input-model)
   (%levenberg-marquardt-max-likelihood algorithm input-model data))
 
-
+#+nil
 (defun %laplace-approximate-posterior (model parameter no-bins)
   ""
   (labels ((val (category)
@@ -196,7 +196,7 @@
 (defun %make-parameter-result ()
   (let+ (((&values binned-posterior median min max max-counts)))
     
-    (make-instance 'solved-parameter-result
+    (make-instance 'parameter-distribution
 		   :name p
 		   :median median
 		   :confidence-level confidence-level
@@ -205,16 +205,16 @@
 		   :max-counts max-counts
 		   :binned-data binned-data)))
 #+nil
-(defmethod get-parameter-results ((result levenberg-marquardt-parameter-result)
+(defmethod get-parameter-results ((result levenberg-marquardt-result)
 				  &key (confidence-level 0.69)
 				       (no-bins 50))
-  (let+ (((&slots input-model result-model data) result)
+  (let+ (((&slots input-model model data) result)
 	 ((&slots model-parameters-to-marginalize) input-model)
 	 (param-infos (iter
 			(for p in model-parameters-to-marginalize)
 			(%make-parameter-result )
 			)))
-    (make-instance 'solved-parameters
+    (make-instance 'optimized-parameters
 		   :algorithm-result result
 		   :parameter-infos param-infos
 		   :data data

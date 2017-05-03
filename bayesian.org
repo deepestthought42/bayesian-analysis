@@ -1,40 +1,537 @@
+* docker stuff
+** start sly
+#+BEGIN_SRC emacs-lisp :results none
+(docker/start-sbcl-with-sly "bayesian-analysis" "deepestthought42/sbcl-1.3.15-bayesian-analysis:20170425"
+                            '(("/home/renee/phd/src/penning-analysis.project/" "/src/")
+                              ("/home/renee/phd/data_analysis/201607CD_In/" "/data_analysis/")
+                              ("/home/renee/phd/data_analysis/fitting_cross_check/" "/fitting_cross_check/")
+                              ("/home/renee/phd/data_analysis/2016_version_of_intrap/midas-files/" "/intrap/"))
+                            4005 "/src/")
+#+END_SRC
+
+* TODOs
+** DONE introduce code to block writing slots
+min, max, prior, etc should be immutable
+** DONE method for plotting data
+** DONE look at metropolis hastings and the signs 
+** DONE make binning issues more sane
+- might be best to actually give a number of bins and then determine
+  the bin width by: (max - min)/no-bins
+  - how does that work for scale parameters though ?
+** DONE make konig work
+** DONE work on likelihood code
+the current way of doing it seems overly complicated, let's not use a
+macro and create functions instead
+
+** WAITING get model comparison working
+** STARTED make konig work faster
+this needs the fit-penning package to provide the konig model
+*** prerequisites
+- tof data
+  #+BEGIN_SRC lisp :results none
+  (in-package #:fit-penning)
+  (defparameter *d*
+    (tof-data:data (midas:read-mpet-midas-file "/data_analysis/midas-files/20160708/run280463.mid") 1
+                   :min-tof 20d0 :max-tof 50d0 :max-no-ions 2))
+#+END_SRC
+- parameters
+  #+BEGIN_SRC lisp :results none
+  (in-package #:fit-penning)
+  (defparameter *no-iterations* 20000)
+  #+END_SRC
+- and then some results to test stuff with
+  #+BEGIN_SRC lisp :results none
+  (in-package #:fit-penning)
+
+  (time
+   (defparameter *mcmc-konig-result/1*
+     (ba:optimize (make-instance 'ba:metropolis-hastings :no-iterations *no-iterations*)
+                              (make-instance 'bayes-konig
+                                             :om-c (* 2 pi 5556259.7d0)
+                                             :om-c-min (* 2 pi (- 5556259.7d0 30d0))
+                                             :om-c-max (* 2 pi (+ 5556259.7d0 30d0))
+                                             :om-c-sample-sigma 0.1d0
+                                             :om-m (* 2 pi 6112.3d0)
+                                             :om-c-bin-width 0.01d0
+                                             :e-0-sample-sigma 1d-1
+                                             :e-0-bin-width 0.1d0
+                                             :tof-offset-sample-sigma 0.01d0
+                                             :tof-offset-bin-width 0.01
+                                             :rho-m0-bin-width 1d-6
+                                             :rho-m0-sample-sigma 1d-5
+                                             :q 13d0)
+                              (ba:initialize-from-source 'bayes-tof *d*))))
+  #+END_SRC
+
+*** let's plot it to make sure it worked
+- iterations
+  #+BEGIN_SRC lisp :results none
+  (in-package #:fit-penning)
+
+  (labels ((cmd (fmt-str &rest args)
+             (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+    (mgl-gnuplot:with-session ()
+      (cmd "reset")
+      (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+      (ba:plot-iteration-values
+       ,*mcmc-konig-result/1*
+       :params-to-plot '(om-c)
+       :start 0 :every 10)
+      (cmd "unset output")))
+  #+END_SRC
+- distributions
+  #+BEGIN_SRC lisp :results none
+  (in-package #:fit-penning)
+
+  (labels ((cmd (fmt-str &rest args)
+               (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+      (mgl-gnuplot:with-session ()
+        (cmd "reset")
+        (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+        (ba:plot-parameter-distribution
+         (ba:get-parameter-results *mcmc-konig-result/1* :no-bins 25 :start 1000) 'om-c)
+        (cmd "unset output")))
+  #+END_SRC
+
+  #+RESULTS:
+- result model
+  #+BEGIN_SRC lisp :results none
+  (in-package #:fit-penning)
+
+  (labels ((cmd (fmt-str &rest args)
+             (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+    (mgl-gnuplot:with-session ()
+      (cmd "reset")
+      (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+      (ba:plot-result-model (ba:get-parameter-results
+  			   ,*mcmc-konig-result/1* 
+  			   :start 1500))
+      (cmd "unset output")))
+#+END_SRC
+*** let's get a profile base-line
+#+BEGIN_SRC lisp :package fit-penning
+(in-package #:fit-penning)
 
 
 
-(defclass )
+
+
+
+
+
+
+#+END_SRC
+
+#+RESULTS:
+: *D*
+
+** TODO put public api in one place
+file:./bayesian.lisp is probably the place to put it
+** DONE introduce caching
+what determines if we use use a cached value ?
+- has sampling happened 
+- are the input parameters the same ?
+
+the dependent parameters need to be able to take more than one
+parameter for the 2d analysis case
+** STARTED make 2d work
+after loosing a lot of work by being stupid with git, let's do this again
+#+BEGIN_SRC lisp
+(in-package #:bayesian-analysis)
+
+
+
+
+
+(defparameter *data* (initialize-from-source '1d-gaussian t))
+
+(defparameter *test-result*
+  (optimize (make-instance 'metropolis-hastings :no-iterations 5000)
+			(make-instance 'test-mean) *data*))
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+    (ba:plot-iteration-values *test-result*
+			      :params-to-plot '(a-1 a-2) :start 0 :every 1)
+    (cmd "unset output")))
+
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+    (ba:plot-likelihood *test-result* :start 0 :every 10)
+    (cmd "unset output")))
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+    (ba:plot-parameter-distribution (ba:get-parameter-results *test-result* :start 1500 :no-bins 10) 'a-2)
+    (cmd "unset output")))
+
+(defparameter *param-results* (ba:get-parameter-results *test-result* :start 5000 :no-bins 10))
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+    (plot-data *data*)
+    (cmd "unset output")))
+
+
+#+END_SRC
+
+aha! seems that when using a jeffreys prior, things go wrong ... mmmh,
+interesting. Oh well, if you take the log of a multiplication it
+becomes a sum.
+
+[2017-03-10 Fri 15:55] after playing around with it for a while, it
+seems to be really messy, so heres what I should 
+- introduce the ability to plot the resonance
+- see if it actually fits when the iteration values imply that it does
+  (I might be misleading myself)
+- if it does, investigate why it fits the "bad" data a lot better than
+  the good data
+- try fitting some hard resonances 
+  + this will proably involve a two isotope fit, how about we try that
+  + first, let's use an intrap fit
+  + also, fixing rho-m0 makes a lot of sense
+    
+
+
+
+*** it is working without the amplitude parameter
+which leaves me to believe that either the probability distribution is
+wrong or I need to play with the parameters more ...
+
+** TODO org output function
+** STARTED introduce gsl fitting as algorithnm to solve for parameters (and model comparison)
+*** logbook
+- let's start with branching this
+- then, where do I need to get the gsl functions from ?
+- ok, copied over the gsl cffi functions into gsl-cffi
+- let's start by moving the fit function over to bayesian
+- maybe I can actually separate the model creation from the fitting
+  part somehow ? Mee, probably takes too long right now
+- so, copyied over what -- in theory -- could be a complete set of the
+  functions I need ..
+- okay, problems when compiling models, seems to have to do with the
+  y_i function names, odd number of args to setf ? --> yup, that's true
+- ok, that is at least compiling now
+- sending stuff to gsl seems to work, testing quadratic fitting
+- commited to git
+- next: need to make things nicer to access 
+- first, introduce global constants for error and max no. iterations
+- introduce wrapper around fit function and rename it to lev-mar-max-like ...
+- created macro in gsl-cffi to take care of the nitty gritty cffi stuff
+- seems to work, now collect proper results, model the class on
+  gsl-fitting for now
+- mmh, might actually be better to be inspired by what I do in
+  bayesian-analys2is for now and then create code that bridges the two
+  worlds, i.e.: create gsl-fitting results from bayesian-analysis
+  objects to be used in the analysis code elsewhere
+- i should be able to use the api already set up for algoritms in
+  bayesian-analysis
+- may be, the existing algorithm.lisp in two parts to reflect the fact
+  that there will be two different algorithms
+- actually, it should fit into mcmc.lisp
+- ok, done that
+- now what ? --> build profile function
+- need fisher information matrix -> copy over from penning-analysis
+- actually, first: fulfill bayesian-analysis api
+- what is still to be fulfilled ? 
+- where do I find out ? -> bayesian.lisp ? *no*, not really
+- algorithm.lisp -> that looks better
+- ok, for the lapclacian approx., the maximization is done over prior
+  x likelihood, what does that mean for non uniform priors ? 
+- levenberg-marquardt is just maximizing the likelihood
+- assuming (I'm pretty sure) flat priors which sucks 
+- o.k., it should be possible to minimize $\chi^2/2 - \ln \left[ p
+  \left( \theta,\phi | M,I \right) \right]$
+- but, to be able to minimize this I will have to put it into the
+  minization routine I am using and that might not work with gsl
+- [2017-04-27 Thu 13:49] returning to work on this
+- well, let's see what I wanted to do ...
+- right, wanted to use the square root: $\sqrt{\chi^2/2 - \ln \left[ p
+  \left( \theta,\phi | M,I \right) \right]}$ to minimize to get around
+  the fact that minimization libraries usually take $\left(
+  f_i(\vec{x})-y_i\right)/\sigma_i$ as input
+- using member of model super class [[file:model.lisp::(log-of-all-priors%20:accessor%20log-of-all-priors%20:initarg%20:log-of-all-priors][log-of-all-priors]] for this 
+- shit, fuck, fuck fuck, that also doesn't work since don't give
+  $\chi$ to the minimization routine but rather $\chi_i$ so to speak
+- that leaves me with implementing my own minimization routine ... again
+- give lisp a chance:
+- [2017-04-27 Thu 15:54] let's see if we can't find a decent lisp
+  Levenberg-Marquardt minimizer and modify it for our purposes -- or
+  find alternatives
+  - nelder mead
+- [2017-04-28 Fri 11:07] a new day, let's see how it goes today 
+- so, looking into NLopt instead of gsl to do the minimization
+- this leaves me to calculate the Fisher information matrix myself
+  ... let's see what gsl has to offer for that
+- is this called the Hessian or Jacobian :: it is the *Hessian*
+- so, gsl gives /gsl_deriv_central/ (among others), which should be good
+  enough to do this as the Fisher information matrix is defined as:
+  
+  \begin{equation}
+  \label{eq:fisher-information}
+  \mathrm{I}_{\alpha\beta} =
+     -\frac{\partial^2}{\partial\theta_{\alpha}\partial\theta_{\beta}}
+        \ln \left[ p(\theta|M,I)\mathcal{L}(\theta) \right]
+  \end{equation}
+- ok, gsl only differentiates in one direction, so that might not cut
+  it
+- ok, after a long, long search I've decided to probably implement the
+  hessian by myself using the complex-step alg.
+- [2017-04-29 Sat 12:24] no, that (very likely) won't work for ToF
+  function, as it involves an integral
+- o.k., let's write this for the bayesian model objects
+- written first try at hessian function for model objects
+- now, need to get the likelihood, how did that work again 
+- getting hessian seems to work, let's see if we can invert it ...
+- *problem*, the values I calculate do not line up with what gsl says
+  (for the covariance matrix). In fact, the diagonal is zero for the
+  easiest case.
+- how can this be ? 
+- O.k. -- there probably was an implementation error somewhere
+  ... getting almost (on the order of 1d-10) the same answer as with
+  gsl
+- *for tomorrow*, refactor parameter-result to contain a result-model
+- then write fisher-information matrix functionality
+- include NLopt in docker image
+- implement ffi for nlopt
+- [2017-05-02 Tue 10:53] starting with the above
+- thing is, putting the result model in the super class doesn't really
+  make sense for mcmc, does it ?
+- the classes are set up for using get-parameter-results for this
+- so, implement that first, after making a commit
+- ok, the names I came up with are total bogus, so let's fix that now
+- renaming parameter-result to optimization-result
+- let's see if that worked
+- at least it compiles
+
+
+  
+*** ok, let's look at the second best option that is actually easier to implement
+An approximate Hessian, that might be susceptible to rounding errors,
+is given by:
+\begin{equation}
+\label{eq:approximate-hessian}
+h_{j,k}=\frac{1}{4\delta_j\delta_k}
+        \left\{\left[
+                 f \left(\mathbf{\theta}+\delta_{j}\mathbf{e}_j + \delta_k\mathbf{e}_k \right)
+                 - f\left(\mathbf{\theta}+\delta_{j}\mathbf{e}_j - \delta_k\mathbf{e}_k \right)
+                \right] 
+                -
+                \left[
+                 f \left(\mathbf{\theta}-\delta_{j}\mathbf{e}_j + \delta_k\mathbf{e}_k \right)
+                 - f\left(\mathbf{\theta}-\delta_{j}\mathbf{e}_j - \delta_k\mathbf{e}_k \right)
+                \right] 
+        \right\}
+\end{equation}
+
+That should be easy enough to implement. But what $\delta$ do we use ?
+Seems Ridout has an answer for that as well ...
+
+Optimal step size: 
+\begin{equation}
+\label{eq:optimal-stepsize}
+\epsilon^{1/4}\theta,
+\end{equation}
+
+where $\epsilon$ is the machine accuracy (long-float-epsilon in common
+lisp)
+
+with these two things in mind, it should be straight forward to
+implement this. 
+
+
+
+
+
+*** justification for minization 
+so, why do I think I can minimize:
+p\begin{equation}
+\label{eq:min-lnchi}
+\min_{\phi}\left\{ \chi^2/2 - \ln \left[ p \left( \theta,\phi | M,I \right) \right]  \right\}
+\end{equation}
+The marginal posterior for a parameter in the Laplacian
+approximation is given by:
+  
+\begin{equation}
+\label{eq:posterior}
+p \left( \theta | D, M, I \right) \propto
+f\left( \theta \right)
+        \left[
+        \det \mathrm{I}\left( \theta \right)
+        \right]^{-1/2}, 
+\end{equation}
+
+where the /profile/ function $f \left( \theta \right)$ is defined as:
+
+\begin{equation}
+\label{eq:profile}
+f \left( \theta \right) = \max_{\phi}p \left( \theta,\phi|M,I \right)\mathcal{L} \left( \theta, \phi \right). 
+\end{equation}
+
+Assuming that the likelihood is given by a multivariate Gaussian,
+which is (approximately) true for a unimodal posterior with enough
+samples, the maximization can be rewritten as the minimization seen
+above. 
+
+
+*** things to integrate
+- [X] gsl functions
+- [X] building wrapper functions to sent stuff to gsl
+- [ ] 
+*** things to fix
+- eval-when accessors for iteration as it does not compile directly,
+  or split it into two files
+*** code
+**** starting to test the gsl fitting functionality
+#+BEGIN_SRC lisp :results none
+(in-package #:bayesian-analysis)
+
+(eval-when (:compile-toplevel :load-toplevel)
+  (define-data-class 1d-data (x "x") y err
+      (object (source t))
+    (setf x (make-array 5 :initial-contents '(-1d0 0d0 1d0 2d0 3d0)
+			  :element-type 'double-float)
+	  y (make-array 5 :initial-contents '(2.8d0 3.1d0 3.05d0 3.5d0 3.4d0)
+			  :element-type 'double-float)
+	  err (make-array 5 :initial-contents '(0.1d0 0.1d0 0.2d0 0.1d0 0.1d0)
+			    :element-type 'double-float))))
+
+
+
+(define-bayesian-model (quadratic 1d-data)
+    ((a :default 0.5 :min -1 :max 1 :prior-type :uniform :sample-sigma 0.1d0 :marginalize t)
+     (b :prior-type :uniform :default -0.5 :min -4 :max 4 :marginalize t)
+     (c :prior-type :uniform :default 2 :min 2 :max 4 :sample-sigma 0.1d0 :marginalize t))
+    (:d_i=f_i+gaussian_error_i_unequal_sigma)
+    ((x) (+ (* a x) (* b x x) c)))
+
+(define-bayesian-model (linear 1d-data)
+    ((a :default 1 :min -1 :max 1 :prior-type :uniform :sample-sigma 0.1d0 :marginalize t)
+     (b :prior-type :uniform :default 2 :min 2 :max 4 :sample-sigma 0.1d0 :marginalize t))
+    (:d_i=f_i+gaussian_error_i_unequal_sigma)
+    ((x)
+      (+ (* a x) b)))
+
+#+END_SRC
+
+**** fisher information matrix calculations
+#+BEGIN_SRC lisp
+(defun get-optimal-delta (model &optional (epsilon long-float-epsilon epsilon-given-p))
+  (let+ (((&slots model-parameters-to-marginalize) model))
+    (iter
+      (for param in model-parameters-to-marginalize)
+      ;; fixme: should look up what happens if the value is below the
+      ;; machine accuracy
+      (collect (list param
+		     (if epsilon-given-p
+			 epsilon
+			 (* (expt epsilon 0.25d0)
+			    (slot-value model param))))))))
+
+
+(defun hessian (func model params.delta)
+  "Calculate the hessian matrix for FUNC, where FUNC is a function
+object (closure) that depends on MODEL. PARAMS.DELTA is a list
+of (PARAMETER-SLOT DELTA), where PARAMETER-SLOT is the name of a slot
+that was marginalized and DELTA is the optimal delta for that
+variable.
+"
+  (let+ ((dim (length params.delta))
+	 ;; fixmee: type information here
+	 (ret-val (make-array (list dim dim))))
+    (labels ((param (i) (first (nth i params.delta)))
+	     (delta (i) (second (nth i params.delta)))
+	     (d (param delta)
+	       (incf (slot-value model param) delta))
+	     (h-j-k (param-j delta-j param-k delta-k)
+	       (let ((a 0d0) (b 0d0)
+		     (c 0d0) (d 0d0))
+		 (d param-j delta-j) (d param-k delta-k)
+		 (setf a (funcall func))
+		 (d param-k (- (* 2d0 delta-k)))
+		 (setf b (funcall func))
+		 (d param-j (- (* 2d0 delta-j)))
+		 (setf d (funcall func))
+		 (d param-k (* 2d0 delta-k))
+		 (setf c (funcall func))
+		 (/ (- (- a b)
+		       (- c d))
+		    (* 4d0 delta-j delta-k)))))
+      (iter
+	(for j from 0 below dim)
+	(iter
+	  (for k from j below dim)
+	  (let+ ((grad (h-j-k (param j) (delta j)
+			      (param k) (delta k))))
+	    (setf (aref ret-val j k) grad
+		  (aref ret-val k j) grad))))
+      ret-val)))
+
 
 
 (defmethod fisher-information-matrix ((model model) &key (epsilon long-float-epsilon))
-  (let+ (((&slots log-of-all-priors log)))
-    ()))
+  (let+ (((&slots log-of-all-priors log)))))
 
 (defun test-approx-hessian ()
-  (let+ ((model (make-instance 'quadratic))
+  (let+ ((input-model (make-instance 'linear))
 	 (data (initialize-from-source '1d-data t))
-	 (result (solve-for-parameters (make-instance 'levenberg-marquardt) model data))
-	 ((&slots result-model iterations) result)
-	 (covar (covariance-matrix (first iterations)))
-	 ((&slots log-of-all-priors) result-model)
-	 (likelihood (initialize-likelihood result-model data))
+	 ((&slots model)
+	  (find-optimum (make-instance 'levenberg-marquardt) input-model data))
+	 ((&slots log-of-all-priors) model)
+	 (likelihood (initialize-likelihood model data))
 	 ((&slots varying/log-of-likelihood constant/log-of-likelihood) likelihood))
     (labels ((fun ()
 	       (+
 		(funcall varying/log-of-likelihood)
 		(funcall constant/log-of-likelihood)
 		(funcall log-of-all-priors))))
-      (let ((res
-	      (math-utils:invert-matrix
-	       (hessian #'fun result-model
-			(get-optimal-delta result-model)))))
-	(values res
-		(iter outer
-		  (with (dim-j dim-k) = (array-dimensions covar))
-		  (for j from 0 below dim-j)
-		  (iter
-		    (for k from 0 below dim-k)
-		    (in outer
-			(collect (+ (aref covar j k)
-				    (aref res j k)))))))))))
+      (progn ;math-utils:invert-matrix
+       (hessian #'fun model
+      		(get-optimal-delta model))))))
+
+(test-approx-hessian)
+
+ ; => #2A((-1425.0000033958147d0 -424.99999966231263d0) (-424.99999966231263d0 -424.99999999972016d0))
+
+
+
+
+#+END_SRC
+**** testing stuff
+#+BEGIN_SRC lisp 
+(in-package #:bayesian-analysis)
+
+
+(defun test-approx-hessian ()
+  (let+ ((model (make-instance 'linear))
+	 (data (initialize-from-source '1d-data t))
+	 ((&slots result-model)
+	  (optimize (make-instance 'levenberg-marquardt) model data))
+	 ((&slots log-of-all-priors) result-model)
+	 (likelihood (initialize-likelihood result-model data))
+	 ((&slots varying/log-of-likelihood constant/log-of-likelihood) likelihood))
+    (labels ((fun ()
+	       (+
+		(funcall varying/log-of-likelihood)
+;		  (funcall constant/log-of-likelihood)
+;		  (funcall log-of-all-priors)
+		)))
+      (math-utils:invert-matrix
+       (hessian #'fun result-model
+		(get-optimal-delta result-model))))))
 
 
 (test-approx-hessian)
@@ -43,5 +540,91 @@
 
 
 
+#+END_SRC
+** TODO testing
+- [ ] model comparison
+- [ ] fits
+** TODO create likelihood function for different assumptions
+*** [ ] only x values
+let's see if I can do that already 
+#+BEGIN_SRC lisp
+(in-package #:fit-penning)
 
 
+
+
+#+END_SRC
+** TODO make use of provided priors
+** TODO introduce other types of error assumptions
+** TODO plotting methods stuff diff. than xys
+** TODO straight integration
+meaning marginalization should also just work. The issue could be that
+I can't do the integral because double-float won't be able to hold
+numbers small enough
+
+let's start by looking at the pdf of a model solved with metropolis
+hastings:
+#+BEGIN_SRC lisp
+(in-package #:bayesian-analysis)
+
+
+(defparameter *test-file* (midas:read-mpet-midas-file "/data_analysis/midas-files/20160630/run277347.mid"))
+
+
+
+(defparameter *1d-result*
+  (ba:optimize (make-instance 'ba:metropolis-hastings :no-iterations 50000)
+			   (apply #'make-instance 'fp:bayes-konig
+				  (fp:get-init-params-from-midas-file *test-file* 5d0
+								   :om-c-sample-sigma 0.5d0
+								   :tof-offset-sample-sigma 0.01d0
+								   :rho-m0-sample-sigma 1d-5))
+			   (ba:initialize-from-source 'fp:bayes-tof
+						      (tof-data:data *test-file* 1
+								     :min-tof 20d0 :max-tof 50d0
+								     :min-no-ions 1 :max-no-ions 1))))
+#+END_SRC
+
+that was easy enough
+*** integration of a single parameter
+- doing this in [[file:./integration.lisp]]
+- mathematically
+  #+BEGIN_EXPORT latex 
+  \begin{equation}
+  \label{eq:posterior-parameter}
+  p \left( x | X, I) \propto p( x|I\right) \int_{x_1}^{x_2}dx p(x|I)p(D|x, X, I)
+  \end{equation}
+  #+END_EXPORT
+- first implementation in integrate-over
+  - making use of existing likelihood/model
+  - is changing the model, so this should be copied before given to
+    integrate-over
+  - needed to add integration functionality to gsl-cffi
+  - need functionality to get prior for parameter
+    + making use of the fact that the array of priors and the list of
+      parameters should be in the same order
+    + not taking advantage of the fact that priors could be constant
+      and need not to be integrated over
+    + the function just integrates over all the given parameters
+
+- get-integration-fun-for-parameter:
+
+  given a function G(M) of the model M given in MODEL , this function
+  will return a function, denoted as F, that integrates over the
+  parameter given by PARAMETER, denoted by x, as follows:
+
+  \begin{equation}
+  \label{eq:1}
+  f \left( M \right) \rightarrow \int_{x_0}^{x_1} dx\ p\left( x | M, I \right) \cdot G(M)
+  \end{equation}
+
+- need to keep the array of priors to actually have them for straight
+  integration
+
+** STARTED documentation
+* possible optimizations
+** TODO seperate priors in constant/varying when integrating
+\begin{equation}
+\label{eq:2}
+J\ddot{\phi} + k\dot{\phi} + D\phi = F(t)
+\end{equation}
