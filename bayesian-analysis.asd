@@ -10,6 +10,7 @@
 	       #:gsl-cffi
 	       #:mgl-gnuplot
 	       #:math-utils
+	       #:cffi-nlopt
 	       #:verbose)
   :serial t
   :components ((:file "package")

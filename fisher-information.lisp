@@ -96,7 +96,7 @@ h_{j,k}=-\frac{1}{4\delta_j\delta_k}
       ret-val)))
 
 
-(defmethod get-fisher-information-matrix ((result levenberg-marquardt-result))
+(defmethod get-fisher-information-matrix ((result levenberg-marquardt-result) &key)
   "Return the Fisher-information matrix for optimization result
 RESULT. Here the FIM is defined as:
 

@@ -8,7 +8,9 @@
 			       :constant/log-of-likelihood
 			       :initform (constantly 0d0))
    (varying/log-of-likelihood :accessor varying/log-of-likelihood :initarg :varying/log-of-likelihood
-			      :initform (constantly 0d0))))
+			      :initform (constantly 0d0))
+   (model :initarg :model :accessor model 
+	  :initform (error "Must initialize model."))))
 
 (defgeneric likelihood (likelihood)
   (:method ((l likelihood))
@@ -65,7 +67,8 @@ when using :d_i=f_i+gaussian_error_1_equal_sigma type likelihood.")))))
 			      (/ 1 (* (expt (* 2d0 pi) (/ N 2d0)) retval)))))))))
       (declare (ftype (function () double-float) varying constant))
       (make-instance 'likelihood :varying/log-of-likelihood #'varying
-				 :constant/log-of-likelihood #'constant))))
+				 :constant/log-of-likelihood #'constant
+				 :model model-object))))
 
 (defun create-likelihood-functions/gaussian/1-unknown-error (model-object data-object
 							     equal-sigma-parameter y_i-f_i)
@@ -90,6 +93,7 @@ when using :d_i=f_i+gaussian_error_1_equal_sigma type likelihood.")))))
 	       (declare (type (double-float 0d0) N))
 	       (expt (* 2d0 pi) (/ N 2d0))))
       (make-instance 'likelihood
+		     :model model-object
 		     :varying/log-of-likelihood
 		     (if *debug-function*
 			 #'(lambda ()
@@ -116,6 +120,7 @@ when using :d_i=f_i+gaussian_error_1_equal_sigma type likelihood.")))))
 		  (return Q))))
 	     (constant () 0d0))
       (make-instance 'likelihood
+		     :model model-object
 		     :varying/log-of-likelihood
 		     (if *debug-function*
 			 #'(lambda ()

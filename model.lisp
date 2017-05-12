@@ -28,7 +28,6 @@
    (y_i :reader y_i)
    (err_i :reader err_i)
    (y_i-f_i :reader y_i-f_i)
-   (sqrt/chi^2-2ln[p] :reader sqrt/chi^2-2ln[p])
    (y_i-f_i/err_i :reader y_i-f_i/err_i)
    (initargs :reader initargs)))
 

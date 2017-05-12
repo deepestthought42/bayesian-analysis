@@ -16,7 +16,6 @@
 	 (y_i-name (alexandria:symbolicate 'y_i/ model-function-name))
 	 (err_i-name (alexandria:symbolicate 'err_i/ model-function-name))
 	 (y_i-f_i-name (alexandria:symbolicate 'y_i-f_i/ model-function-name))
-	 (sqrt/chi^2-2ln[p]-name (alexandria:symbolicate 'sqrt/chi^2-2ln[p]/ model-function-name))
 	 (y_i-f_i/err_i-name (alexandria:symbolicate 'y_i-f_i/err_i/ model-function-name))
 	 (model-function-code
 	  `(defun ,model-function-name (,@function-independent-parameters model-object)
@@ -68,23 +67,6 @@
 			  (,model-function-name ,@(mapcar #'(lambda (p) `(aref ,p i )) independent-parameters)
 						model-object))))
 		   `((declare (ignore i model-object data-object)) 0d0))))
-	 ;; (sqrt/chi^2-2ln[p]-code
-	 ;;  `(defun ,sqrt/chi^2-2ln[p]-name (i model-object data-object)
-	 ;;    ,@(if dependent-parameters
-	 ;; 	   `((declare (type ,model-name model-object)
-	 ;; 		      (type ,data-data-type data-object)
-	 ;; 		      (type (integer 0) i))
-	 ;; 	     (with-slots (,@independent-parameters ,@dependent-parameters) data-object
-	 ;; 	       (declare (type (simple-array double-float)
-	 ;; 			      ,@independent-parameters ,@dependent-parameters))
-	 ;; 	       (let-plus:let+ (((&slots log-of-all-priors) ,model-object)
-	 ;; 			       (Q (- (aref ,@dependent-parameters i)
-	 ;; 				     (,model-function-name
-	 ;; 				      ,@(mapcar #'(lambda (p) `(aref ,p i )) independent-parameters)
-	 ;; 				      model-object))))
-	 ;; 		 (sqrt (- (* Q Q)
-	 ;; 			  (funcall log-of-all-priors))))))
-	 ;; 	   `((declare (ignore i model-object data-object)) 0d0))))
 	 (y_i-f_i/err_i-code
 	  `(defun ,y_i-f_i/err_i-name (i model-object data-object)
 	     ,@(if (and dependent-parameters error-parameters)
