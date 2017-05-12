@@ -291,6 +291,7 @@ wrong or I need to play with the parameters more ...
      -\frac{\partial^2}{\partial\theta_{\alpha}\partial\theta_{\beta}}
         \ln \left[ p(\theta|M,I)\mathcal{L}(\theta) \right]
   \end{equation}
+
 - ok, gsl only differentiates in one direction, so that might not cut
   it
 - ok, after a long, long search I've decided to probably implement the
@@ -321,7 +322,8 @@ wrong or I need to play with the parameters more ...
 - renaming parameter-result to optimization-result
 - let's see if that worked
 - at least it compiles
-- 
+- [2017-05-12 Fri 08:36] so, this works now, let's apply it to penning
+  trap measurements to see if it still works
 
 
   
