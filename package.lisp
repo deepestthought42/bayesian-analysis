@@ -48,6 +48,8 @@
    #:constant/log-of-likelihood
    #:get-prior-for-parameter
    #:gsl-multifit-fdfsolver-alloc
-   #:no-parameters-to-marginalize)
+   #:no-parameters-to-marginalize
+   #:nlopt
+   #:nlopt-result)
   (:nicknames ba))
 

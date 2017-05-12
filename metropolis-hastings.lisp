@@ -115,7 +115,7 @@
 
 
 (defmethod find-optimum ((algorithm metropolis-hastings) input-model data
-			 &key random-numbers )
+			 &key random-numbers)
   (labels ((!> (fun)
 	     (declare (type (function () t) fun))
 	     (funcall fun))
