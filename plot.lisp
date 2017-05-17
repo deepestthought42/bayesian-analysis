@@ -111,7 +111,8 @@
 			      &key (no-steps 1000)
 				   (style-options/data "pt 7")
 				   (style-options/input "with lines lt 3 lw 0.3 lc 0 title 'input input-model'")
-				   (style-options/result "with lines lw 1.5 lc 7 title 'result input-model'"))
+				   (style-options/result "with lines lw 1.5 lc 7 title 'result input-model'")
+				   (enclose-in-plot t))
   (let+ (((&slots model data algorithm-result) result)
 	 ((&slots input-model) algorithm-result)
 	 (input-fun (ba:get-1d-plot-function input-model))
@@ -133,11 +134,11 @@
 	(cmd "set xrange [~f:~f]" (- min-x offset) (- max-x offset))
 	(cmd "set xlabel '~a'" x-label )
 	(cmd "set ylabel '~a'" y-label))
-      (mgl-gnuplot:plot*
-       (list
-	plot-data
-	(mgl-gnuplot:data* model-input-data style-options/input)
-	(mgl-gnuplot:data* model-results-data style-options/result))))))
+      (let ((d (list
+		plot-data
+		(mgl-gnuplot:data* model-input-data style-options/input)
+		(mgl-gnuplot:data* model-results-data style-options/result))))
+	(if enclose-in-plot (mgl-gnuplot:plot* d) d)))))
 
 
 

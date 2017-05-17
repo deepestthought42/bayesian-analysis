@@ -26,7 +26,7 @@
 (defun jeffreys (min max object slot-name)
   (let ((ln-max/min (coerce (log (/ max min)) 'double-float)))
     (declare (type double-float ln-max/min))
-    (/ 1 (* (slot-value object slot-name) ln-max/min))))
+    (log (/ 1 (* (slot-value object slot-name) ln-max/min)))))
 
 (defun uniform-log-lambda (min max object slot-name)
   (declare (ignore object))

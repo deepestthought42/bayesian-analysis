@@ -10,7 +10,9 @@
    (varying/log-of-likelihood :accessor varying/log-of-likelihood :initarg :varying/log-of-likelihood
 			      :initform (constantly 0d0))
    (model :initarg :model :accessor model 
-	  :initform (error "Must initialize model."))))
+	  :initform (error "Must initialize model."))
+   (data :initarg :data :accessor data 
+	 :initform (error "Must initialize data."))))
 
 (defgeneric likelihood (likelihood)
   (:method ((l likelihood))
@@ -68,6 +70,7 @@ when using :d_i=f_i+gaussian_error_1_equal_sigma type likelihood.")))))
       (declare (ftype (function () double-float) varying constant))
       (make-instance 'likelihood :varying/log-of-likelihood #'varying
 				 :constant/log-of-likelihood #'constant
+				 :data data-object
 				 :model model-object))))
 
 (defun create-likelihood-functions/gaussian/1-unknown-error (model-object data-object
@@ -94,6 +97,7 @@ when using :d_i=f_i+gaussian_error_1_equal_sigma type likelihood.")))))
 	       (expt (* 2d0 pi) (/ N 2d0))))
       (make-instance 'likelihood
 		     :model model-object
+		     :data data-object
 		     :varying/log-of-likelihood
 		     (if *debug-function*
 			 #'(lambda ()
@@ -129,6 +133,7 @@ when using :d_i=f_i+gaussian_error_1_equal_sigma type likelihood.")))))
 					  "Caluclated varying likelihood to be: ~f" val)
 			       val))
 			 #'varying)
+		     :data data-object
 		     :constant/log-of-likelihood #'constant))))
 
 

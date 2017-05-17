@@ -4,6 +4,8 @@
 
 
 
+
+
 (define-data-class 1d-data (x "x") y err
     (object (source t))
   (setf x (make-array 4 :initial-contents '(-1d0 0d0 1d0 2d0)

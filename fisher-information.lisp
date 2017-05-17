@@ -13,7 +13,6 @@
    (determinant :initarg :determinant :accessor determinant 
 		:initform (error "Must initialize determinant."))))
 
-(defgeneric get-fisher-information-matrix (result &key))
 
 ;; fixmee: need to reenter this in asd
 
@@ -96,31 +95,16 @@ h_{j,k}=-\frac{1}{4\delta_j\delta_k}
       ret-val)))
 
 
-(defmethod get-fisher-information-matrix ((result levenberg-marquardt-result) &key)
-  "Return the Fisher-information matrix for optimization result
-RESULT. Here the FIM is defined as:
-
-  \begin{equation}
-  \label{eq:fisher-information}
-  \mathrm{I}_{\alpha\beta} =
-     -\frac{\partial^2}{\partial\theta_{\alpha}\partial\theta_{\beta}}
-        \ln \left[ p(\theta|M,I)\mathcal{L}(\theta) \right]
-  \end{equation}
-
-The Hessian is approximated (see HESSIAN) using EPSILON as finite
-difference (defaults to machine-epsilon).
-
-"
-  (let+ (((&slots model data) result)
+(defmethod get-fisher-information-matrix ((result nlopt-result) &key)
+  "See generic function for documentation."
+  (let+ (((&slots model data likelihood) result)
 	 ((&slots log-of-all-priors) model)
-	 (likelihood (initialize-likelihood model data))
 	 ((&slots varying/log-of-likelihood constant/log-of-likelihood) likelihood))
     (labels ((fun ()
-	       (+
-		(funcall varying/log-of-likelihood)
-		(funcall constant/log-of-likelihood)
-		(funcall log-of-all-priors))))
-      (hessian #'fun model (get-optimal-delta model)))))
+	       (+ (funcall varying/log-of-likelihood)
+		  (funcall constant/log-of-likelihood)
+		  (funcall log-of-all-priors))))
+      (hessian #'fun model (get-optimal-delta model) :sign -1d0))))
 
 
 #+nil
@@ -134,3 +118,5 @@ difference (defaults to machine-epsilon).
       matrix))
 
   (test-fisher-information-matrix))
+
+

@@ -12,6 +12,13 @@
   (:documentation "Return the priors for parameter PAREMETER 
 => log-of-prior, varying/log-of-prior, constant/log-of-prior"))
 
+(defgeneric copy-object (model &rest rest)
+  (:documentation "Return a (deep) copy of object MODEL."))
+
+(defgeneric bayesian-analysis:initialize-accumulator (model no-iterations)
+  (:documentation "Initialize an accumulator object for model MODEL
+  with NO-ITERATIONS number of iterations."))
+
 ;;; data api
 
 (defgeneric initialize-likelihood (model data)
@@ -37,7 +44,22 @@
   (:documentation "Get the textual description of the parameter
   PARAMETER for data object OBJECT."))
 
+;;; misc
+(defgeneric get-fisher-information-matrix (result &key)
+  (:documentation   "Return the Fisher-information matrix for optimization result
+RESULT. Here the FIM is defined as:
 
+  \begin{equation}
+  \label{eq:fisher-information}
+  \mathrm{I}_{\alpha\beta} =
+     -\frac{\partial^2}{\partial\theta_{\alpha}\partial\theta_{\beta}}
+        \ln \left[ p(\theta|M,I)\mathcal{L}(\theta) \right]
+  \end{equation}
+
+The Hessian is approximated (see HESSIAN) using EPSILON as finite
+difference (defaults to machine-epsilon).
+
+"))
 
 
 ;;; conditions

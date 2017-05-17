@@ -195,13 +195,28 @@
 				       parameters)))
     `((defclass ,name (bayesian-analysis:model)
 	(,@all-slot-specifiers))
-      (defmethod copy-object ((object ,name))
-	(let* ((new-object (apply #'make-instance ',name (initargs object))))
-	  (iter:iter
-	    (for s in ',(mapcar #'first parameters))
-	    (setf (slot-value new-object s)
-		  (slot-value object s)))
-	  new-object)))))
+      (defmethod copy-object ((object ,name) &rest overwrite-params)
+	(let ((init-args (initargs object)))
+	  (labels ((overwrite (args)
+		     (let-plus:let+ (((key val &rest args) args))
+		       (if (not key)
+			   (error "Poorly formed lambda list: ~a" overwrite-params))
+		       (setf (getf init-args key) val)
+		       (if args
+			   (overwrite args)))))
+	    (if overwrite-params (overwrite overwrite-params))
+	    (iter:iter
+	      (with new-object = (apply #'make-instance ',name init-args))
+	      (for s in ',(mapcar #'first parameters))
+	      (setf (slot-value new-object s)
+		    (slot-value object s))
+	      (finally (return new-object)))))))))
+
+
+
+
+
+
 
 
 

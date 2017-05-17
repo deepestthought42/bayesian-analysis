@@ -50,6 +50,7 @@
    #:gsl-multifit-fdfsolver-alloc
    #:no-parameters-to-marginalize
    #:nlopt
-   #:nlopt-result)
+   #:nlopt-result
+   #:copy-object)
   (:nicknames ba))
 
