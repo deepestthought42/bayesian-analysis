@@ -11,10 +11,12 @@
 	       #:mgl-gnuplot
 	       #:math-utils
 	       #:cffi-nlopt
+	       #:lla
 	       #:verbose)
   :serial t
   :components ((:file "package")
 	       (:file "bayesian-analysis")
+	       (:file "utils")
 	       (:file "init")
 	       (:file "algorithm")
 	       (:file "data")
@@ -25,8 +27,8 @@
                (:file "model")
 	       (:file "metropolis-hastings")
 	       (:file "levenberg-marquardt")
-	       (:file "fisher-information")
 	       (:file "nlopt")
+	       (:file "fisher-information")
 	       (:file "odds")
 	       (:file "plot")))
 

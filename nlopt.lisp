@@ -84,33 +84,39 @@
     (nlopt:optimization likelihood algorithm)))
 
 
-(defun %laplacian-max-phi (x parameter algorithm model-to-optimize data logarithmic)
+(defun %laplacian-max-phi (x parameter algorithm model-to-optimize data)
   (setf (slot-value model-to-optimize parameter) x)
   (let+ (((&values &ign &ign f) (%do-f-max model-to-optimize data algorithm))
 	 (model-for-hessian (copy-object model-to-optimize))
 	 (fun-for-hessian (get-ln-of-p*l model-for-hessian data))
 	 (hessian (hessian fun-for-hessian model-for-hessian
 			   (get-optimal-delta model-for-hessian) -1d0))
-	 ((&values &ign determinant) (math-utils:invert-matrix hessian))
+	 (determinant (lla:det hessian))
 	 (f (funcall (get-ln-of-p*l model-to-optimize data)))
-	 (d (sqrt determinant)))
-    (if logarithmic
-	(values (- f (log d)) f (log d))
-	(values (exp (- f (log d))) (exp f) d))))
+	 (d (abs (sqrt determinant))))
+    (- f (log d))))
 
 
-(defun laplacian-approximation (nlopt-result parameter no-bins &key (collect-log nil))
+(defun laplacian-approximation (nlopt-result parameter no-bins)
   (let+ ((marginalize-keyword (alexandria:make-keyword (w/suffix-slot-category :marginalize parameter)))
 	 ((&slots model data algorithm) nlopt-result)
-	 (model-to-optimize (copy-object model marginalize-keyword nil)))
-    (let+ ((min (coerce (slot-value model (w/suffix-slot-category :min parameter)) 'double-float))
-	   (max (coerce (slot-value model (w/suffix-slot-category :max parameter)) 'double-float)))
-      (iter
-	(with diff = (- max min))
-	(for x from min to max by (/ diff no-bins))
-	(for (values f-d f d) =
-	     (%laplacian-max-phi x parameter algorithm model-to-optimize data collect-log))
-	(collect (list x f-d f d))))))
+	 (model-to-optimize (copy-object model marginalize-keyword nil))
+	 (min (coerce (slot-value model (w/suffix-slot-category :min parameter)) 'double-float))
+	 (max (coerce (slot-value model (w/suffix-slot-category :max parameter)) 'double-float)))
+    (iter
+      (with diff = (- max min))
+      (for x from min to max by (/ diff no-bins))
+      (for ln-of-p*L = (%laplacian-max-phi x parameter algorithm
+					   model-to-optimize data))
+      (collect x into xs)
+      (collect ln-of-p*L into f-of-xs)
+      (maximize ln-of-p*L into max-ln-of-p*L)
+      (minimize ln-of-p*L into min-ln-of-p*L)
+      (finally (return
+		 (let ((integral (sumlogexp f-of-xs)))
+		   (mapcar #'(lambda (x ln-of-p*L)
+			       (list x (exp (- ln-of-p*L integral))))
+			   xs f-of-xs)))))))
 
 
 

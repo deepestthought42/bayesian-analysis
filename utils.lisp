@@ -16,7 +16,7 @@
 
 
 
-(defun sumlogexp (sequence)
+(defun sumlogexp (sequence &optional (factor 1d0))
   "Returns ln[∑exp[xᵢ]], where the xᵢ are member of the sequence given
 in SEQUENCE. It is assuming the elementes of SEQUENCE to be of type
 DOUBLE-FLOAT and minimizes the losses due to floating point under/overflow."
@@ -45,9 +45,9 @@ DOUBLE-FLOAT and minimizes the losses due to floating point under/overflow."
 		   (- min-log min)
 		   (- max-log max)))
 	      (t (error 'program-error)))))
-    (log (+ a (reduce #'(lambda (x1 x2) (+ x2 (exp (- x1 a)))) sequence)))))
-
-
+    (log (+ a (iter
+		(for x in sequence)
+		(sum (exp (- x a))))))))
 
 
 

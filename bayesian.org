@@ -1,7 +1,7 @@
 * docker stuff
 ** start sly
 #+BEGIN_SRC emacs-lisp :results none
-(docker/start-sbcl-with-sly "bayesian-analysis" "deepestthought42/sbcl-1.3.15-bayesian-analysis:20170502"
+(docker/start-sbcl-with-sly "bayesian-analysis" "deepestthought42/sbcl-1.3.15-bayesian-analysis:20170517"
                             '(("/home/renee/phd/src/penning-analysis.project/" "/src/")
                               ("/home/renee/phd/data_analysis/201607CD_In/" "/data_analysis/")
                               ("/home/renee/phd/data_analysis/fitting_cross_check/" "/fitting_cross_check/")
@@ -9,9 +9,13 @@
                             4005 "/src/")
 #+END_SRC
 ** version history
-| date                   | comment         |
-|------------------------+-----------------|
-| [2017-05-02 Tue 22:05] | installed nlopt |
+| date                   | comment                            |
+|------------------------+------------------------------------|
+| [2017-05-02 Tue 22:05] | installed nlopt                    |
+| [2017-05-17 Wed 12:07] | installed libblas, lapack          |
+| [2017-05-18 Thu 11:30] | symbols seem to have been mixed up |
+
+
 ** prepare session
 #+BEGIN_SRC lisp :results none
 (ql:quickload :fare-quasiquote)
@@ -592,6 +596,9 @@ the penning-analysis package, might be easier
 		 :min-tof 20d0 :max-tof 50d0 :min-no-ions 1 :max-no-ions 1))
 #+END_SRC
 
+#+RESULTS:
+: *D*
+
 Next: example on how to use it:
 #+BEGIN_SRC lisp :results none
 (in-package #:penning-analysis)
@@ -599,11 +606,11 @@ Next: example on how to use it:
 (let ((params (fp:get-init-params-from-midas-file *test-file* 10d0
 						  :om-c-sample-sigma 0.5d0
 						  :rho-m0 6d-4
-						  :rho-m0-min 2d-4
-						  :rho-m0-max 7d-4
-						  :tof-offset-min -1d0
+						  :rho-m0-min 1d-4
+						  :rho-m0-max 1d-3
+						  :tof-offset-min 0.1d0
 						  :tof-offset 0.1d0
-						  :tof-offset-max 1d0)))
+						  :tof-offset-max 2d0)))
   (defparameter *res*
     (ba:find-optimum (make-instance 'ba:nlopt)
 		     (apply #'make-instance 'fp:bayes-konig params)
@@ -624,21 +631,21 @@ Next: example on how to use it:
 	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
   (mgl-gnuplot:with-session ()
     (cmd "reset")
-    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
 ;    (cmd "set logscale x")
-    (let ((d (ba::laplacian-approximation *res* 'fp::rho-m0 300 :collect-log nil)))
+    (let ((d (ba::laplacian-approximation *res* 'fp::rho-m0 100)))
      (mgl-gnuplot:plot*
       (list
-;       (mgl-gnuplot:data* d "u 1:2 with steps title 'f - d'")
-;       (mgl-gnuplot:data* d "u 1:3 with steps title 'f'")
-       (mgl-gnuplot:data* d "u 1:4 with steps title 'd'")
-       )))
+       (mgl-gnuplot:data* d "u 1:2 with steps title 'laplacian approx. for posterior'"))))
     (cmd "unset output")))
 
 
-(ba::laplacian-approximation *res* 'fp::tof-offset 100 :collect-log t)
 
-;; this doesn't make sense, the 
+
+
+
+
+
 
 #+END_SRC
 *** logbook
@@ -709,6 +716,13 @@ Next: example on how to use it:
   : unset output
 - ok, that seems to make sense to me
 - let's look at copy object and see if we can amend it so it updates specific values
+- [2017-05-17 Wed 10:30] that made it work somehow
+- now, the determinant is still a problem ... let's fix that
+- [2017-05-18 Thu 16:10] seems, that the determinant isn't really a
+  problem (just taking the absolute, seems to work) and the inverse is
+  working now as well
+- commiting
+- next thing to do, 
 ** TODO testing
 - [ ] model comparison
 - [ ] fits
