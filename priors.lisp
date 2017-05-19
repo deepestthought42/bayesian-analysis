@@ -89,7 +89,7 @@
 		val))
 	  #'(lambda ()
 	      (let* ((x-mu (- (slot-value object slot-name) mu))
-		     (exponent (/ (* x-mu x-mu) 2s^2)))
+		     (exponent (- (/ (* x-mu x-mu) 2s^2))))
 		(+ factor exponent)))))))
 
 
@@ -102,7 +102,7 @@
 	   (mu (sv :prior-mu))
 	   (factor (log (/ 1d0 (* sigma (sqrt (* 2d0 pi))))))
 	   (x-mu (- (slot-value object slot-name) mu))
-	   (exponent (/ (* x-mu x-mu) 2s^2)))
+	   (exponent (- (/ (* x-mu x-mu) 2s^2))))
       (+ factor exponent))))
 
 

@@ -603,11 +603,11 @@ Next: example on how to use it:
 
 (let ((params (fp:get-init-params-from-midas-file *test-file* 10d0
 						  ;:om-c-prior-mu 3.2225414d7
-						  :om-c-prior-mu 3.22270d7
+						  :om-c-prior-mu 3.2225414d7
 ;						  :om-c 3.22257d7
 ;						  :om-c-min 3.222550d7
 ;						  :om-c-max 3.22257d7
-						  :om-c-prior-sigma 1d0
+						  :om-c-prior-sigma 0.1d0
 						  :rho-m0 4d-4
 						  :rho-m0-min 1d-4
 						  :rho-m0-max 1d-3)))
@@ -622,30 +622,30 @@ Next: example on how to use it:
 							       :max-no-ions 5)))))
 
 
-(fp::om-c )
+(progn
+  (defun test-gaussian ()
+    (labels ((cmd (fmt-str &rest args)
+	       (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+      (mgl-gnuplot:with-session ()
+	(cmd "reset")
+	(cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+	(mgl-gnuplot:plot*
+	 (list
+	  (mgl-gnuplot:data*
+	   (let+ ((model (ba:copy-object (ba:model *res*)))
+		  ((&slots fp::om-c-min fp::om-c-max) model)
+		  (no-steps 200)
+		  (prior (aref (ba::log-of-all-priors-array model) 0)))
+	     (iter
+	       (for x from fp::om-c-min to fp::om-c-max
+		    by (/ (- fp::om-c-max fp::om-c-min) no-steps))
+	       (setf (fp::om-c model) x)
+	       (collect (list (- x fp::om-c-min)
+			      (funcall prior)))))
+	   "with lines"))) 
+	(cmd "unset output")))))
 
-(labels ((cmd (fmt-str &rest args)
-	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-  (mgl-gnuplot:with-session ()
-    (cmd "reset")
-    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
-    (mgl-gnuplot:plot*
-     (list
-      (mgl-gnuplot:data*
-       (iter
-	 (let+ ((model (ba:copy-object (ba:model *res*)))
-		((&slots fp::om-c-min fp::om-c-max) model)
-		(no-steps)
-		(prior (aref (ba::log-of-all-priors-array model) 0)))
-	   (iter
-	     (for x from fp::om-c-min to fp::om-c-max
-		  by (/ (- fp::om-c-max fp::om-c-min) no-steps))
-	     (setf (fp::om-c model) x)
-	     (collect (list (- x fp::om-c-min)
-			    (funcall prior))))))
-       "with lines"))) 
-    (cmd "unset output")))
-
+(test-gaussian)
 
 
 
@@ -756,7 +756,11 @@ Next: example on how to use it:
 - commiting: [[orgit-rev:~/phd/src/penning-analysis.project/bayesian-analysis/::56ae9f2][~/phd/src/penning-analysis.project/bayesian-analysis/ (magit-rev 56ae9f2)]]
 - *next thing to do*, introduce proper gaussian prior
 - that probably involves more parameters, as min/max isn't enough
-- [2017-05-19 Fri 09:44] introduced 
+- [2017-05-19 Fri 09:44] introduced gaussian prior
+- commit: [[orgit-rev:~/phd/src/penning-analysis.project/bayesian-analysis/::bb39265][~/phd/src/penning-analysis.project/bayesian-analysis/ (magit-rev bb39265)]]
+- now, let's plot the priors to see that the gaussian actually looks
+  like it is supposed to look like (and maybe the jeffreys as well ...)
+- okay then, there was a small mistake in the gaussians
 ** TODO testing
 - [ ] model comparison
 - [ ] fits
