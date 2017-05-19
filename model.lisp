@@ -51,11 +51,16 @@
 (defun %s (things &rest other-things)
   (apply #'alexandria:symbolicate things other-things))
 
+;; fixme: sample-sigma and sample-type need to go intro a mcmc
+;; specific class
+
 (defparameter *slot-type<->suffixes*
   '((:marginalize -marginalize)
     (:prior-type -prior-type)
     (:min -min)
     (:max -max)
+    (:prior-mu -prior-mu)
+    (:prior-sigma -prior-sigma)
     (:sample-sigma -sample-sigma)
     (:sample-type -sample-type)
     (:description -description)))
@@ -70,19 +75,23 @@
       (if is-key
 	  (alexandria:make-keyword name-with-suffix)
 	  name-with-suffix))))
+ 
 
 
 
 
 
-
-(defun make-slot-specifiers-for-parameter (name &key (default 0d0)
-						     (min 0d0) (max 0d0)
-						     (sample-sigma 0.1d0)
-						     (sample-type :gaussian)
-						     (marginalize nil)
-						     (description "")
-						     (prior-type :certain))
+(defun make-slot-specifiers-for-parameter (enable-samplers name 
+					   &key (default 0d0)
+						(min 0d0)
+						(max 0d0)
+						(prior-mu (/ (+ max min) 2d0))
+						(prior-sigma (if (= min max) 1d0 (/ (- max min) 2d0)))
+						(sample-sigma 0.1d0)
+						(sample-type :gaussian)
+						(marginalize nil)
+						(description "")
+						(prior-type :certain))
   (labels ((make-default-param (name use-default default-value &optional coerce)
 	     (if (not use-default)
 		 `(error ,(format nil "No value known for parameter: ~a" name))
@@ -101,10 +110,14 @@
 	     :initform ,(make-default-param name t default t))
       ,(standard-slot :marginalize t marginalize)
       ,(standard-slot :prior-type t prior-type)
+      ,@(if (eql prior-type :gaussian)
+	    (list (standard-slot :prior-mu t prior-mu)
+		  (standard-slot :prior-sigma t prior-sigma)))
       ,(standard-slot :min t min t)
       ,(standard-slot :max t max t)
-      ,(standard-slot :sample-type t sample-type)
-      ,(standard-slot :sample-sigma t sample-sigma t)
+      ,@(if enable-samplers
+	    (list (standard-slot :sample-type t sample-type)
+		  (standard-slot :sample-sigma t sample-sigma t)))
       ,(standard-slot :description t description))))
 
 
@@ -121,7 +134,7 @@
 				   :element-type 'double-float)))
 
 (defun make-initialize-after-code (class-name model-function-name parameters documentation
-				   model-prior-code no-independent-parameters
+				   model-prior-code no-independent-parameters enable-samplers
 				   f_i-name y_i-name err_i-name y_i-f_i-name y_i-f_i/err_i-name)
   `(defmethod initialize-instance :after ((object ,class-name) &rest initargs &key &allow-other-keys)
      (labels ((l-model-prior () ,(if model-prior-code model-prior-code '1d0)))
@@ -141,7 +154,7 @@
        (setf (slot-value object p) (coerce (slot-value object p)
 					   'double-float)))
      (--init--priors object)
-     (--init--sampling-functions object)
+     ,@(if enable-samplers `((--init--sampling-functions object)))
      (--init--cache object ,no-independent-parameters)))
 
 
@@ -190,8 +203,8 @@
      (--acc--initialize object no-iterations)))
 
 
-(defun make-model-class-and-coby-object (name parameters)
-  (let+ ((all-slot-specifiers (mapcan #'(lambda (s) (apply #'make-slot-specifiers-for-parameter s))
+(defun make-model-class-and-coby-object (name enable-samplers parameters)
+  (let+ ((all-slot-specifiers (mapcan #'(lambda (s) (apply #'make-slot-specifiers-for-parameter enable-samplers s))
 				       parameters)))
     `((defclass ,name (bayesian-analysis:model)
 	(,@all-slot-specifiers))
@@ -220,7 +233,8 @@
 
 
 
-(defmacro define-bayesian-model ((name data-type &key model-prior-code documentation) 
+(defmacro define-bayesian-model ((name data-type &key model-prior-code documentation
+						      (enable-samplers t)) 
 				 (&rest model-parameters)
 				 (likelihood-type &key equal-sigma-parameter)
 				 ((&rest independent-parameters) &body model-function-body))
@@ -238,9 +252,9 @@
 	 (no-independent-params (length independent-parameters)))
 	(%check-likelihood-params likelihood-type equal-sigma-parameter)
 	`(progn
-	   ,@(make-model-class-and-coby-object name model-parameters)
+	   ,@(make-model-class-and-coby-object name enable-samplers model-parameters)
 	   ,(make-initialize-after-code name model-function-name (mapcar #'first model-parameters)
-					documentation model-prior-code no-independent-params
+					documentation model-prior-code no-independent-params enable-samplers
 					f_i-name y_i-name err_i-name y_i-f_i-name y_i-f_i/err_i-name)
 	   ,(make-accumulator-method name)
 	   ,model-function-code

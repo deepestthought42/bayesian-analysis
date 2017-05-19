@@ -64,6 +64,8 @@ difference (defaults to machine-epsilon).
 
 ;;; conditions
 
+(define-condition couldnt-optimize (error) ())
+
 (define-condition unknown-prior-type (error)
   ((type-not-known :accessor type-not-known :initarg :type-not-known
 		   :initform :unspecified)))

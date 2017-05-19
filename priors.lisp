@@ -9,8 +9,11 @@
 (declaim (optimize (debug 3) (safety 1) (speed 3)))
 
 
+
+;; --- jeffreys prior
+
 (defun jeffreys-log-lambda (min max object slot-name)
-  (let ((ln-max/min (coerce (log (/ max min)) 'double-float)))
+  (let+ ((ln-max/min (coerce (log (/ max min)) 'double-float)))
     (if *debug-function*
 	#'(lambda ()
 	    (let ((val (log (/ 1 (* (slot-value object slot-name) ln-max/min)))))
@@ -27,6 +30,9 @@
   (let ((ln-max/min (coerce (log (/ max min)) 'double-float)))
     (declare (type double-float ln-max/min))
     (log (/ 1 (* (slot-value object slot-name) ln-max/min)))))
+
+
+;; --- uniform prior
 
 (defun uniform-log-lambda (min max object slot-name)
   (declare (ignore object))
@@ -46,6 +52,8 @@
   (declare (ignore object slot-name))
   (coerce (/ 1 (- max min)) 'double-float))
 
+;; --- certain prior
+
 (defun certain-log-lambda (min max object slot-name)
   (declare (ignore object min max))
   (if *debug-function*
@@ -59,6 +67,46 @@
 (defun certain (min max object slot-name)
   (declare (ignore object slot-name min max))
   1d0)
+
+;; --- gaussian prior
+
+(defun gaussian-log-lambda (min max object slot-name)
+  (declare (ignore min max))
+  (labels ((sv (cat)
+	     (slot-value object (w/suffix-slot-category cat slot-name))))
+    (let+ ((sigma (sv :prior-sigma))
+	   (2s^2 (* 2d0 sigma sigma))
+	   (mu (sv :prior-mu))
+	   (factor (log (/ 1d0 (* sigma (sqrt (* 2d0 pi)))))))
+      (if *debug-function*
+	  #'(lambda ()
+	      (let* ((x-mu (- (slot-value object slot-name) mu))
+		     (exponent (/ (* x-mu x-mu) 2s^2))
+		     (val (+ factor exponent)))
+		(debug-out :info :prior
+			   "Getting Gaussian prior value for slot: ~a, x: ~a, value: ~f"
+			   slot-name (slot-value object slot-name) val)
+		val))
+	  #'(lambda ()
+	      (let* ((x-mu (- (slot-value object slot-name) mu))
+		     (exponent (/ (* x-mu x-mu) 2s^2)))
+		(+ factor exponent)))))))
+
+
+(defun gaussian (min max object slot-name)
+  (declare (ignore min max))
+  (labels ((sv (cat)
+	     (slot-value object (w/suffix-slot-category cat slot-name))))
+    (let+ ((sigma (sv :prior-sigma))
+	   (2s^2 (* 2d0 sigma sigma))
+	   (mu (sv :prior-mu))
+	   (factor (log (/ 1d0 (* sigma (sqrt (* 2d0 pi))))))
+	   (x-mu (- (slot-value object slot-name) mu))
+	   (exponent (/ (* x-mu x-mu) 2s^2)))
+      (+ factor exponent))))
+
+
+;; ---
 
 (defun make-prior-in-range (min max object slot-name)
   (if *debug-function*
@@ -78,7 +126,8 @@
 (defparameter *prior-types*
   '((:jeffreys jeffreys-log-lambda :variable jeffreys)
     (:uniform uniform-log-lambda :constant uniform)
-    (:certain certain-log-lambda :constant certain)))
+    (:certain certain-log-lambda :constant certain)
+    (:gaussian gaussian-log-lambda :variable)))
 
 
 

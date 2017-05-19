@@ -1,5 +1,18 @@
 (in-package #:bayesian-analysis)
 
+(define-condition nlopt-couldnt-optimize ()
+  ((result :accessor nlopt-result :initarg :nlopt-result
+		 :initform 'nlopt:+nlopt_failure+)
+   (explanation :accessor explanation :initarg :explanation
+		:initform (nlopt:docstring 'nlopt:nlopt-result nlopt:+nlopt_failure+)))
+  (:report (lambda (c stream)
+	    (let+ (((&slots result explanation) c))
+	      (format stream "NLopt optimization aborted with errorcode: ~a (~a) "
+		      result explanation)))))
+
+
+
+
 
 
 (defclass nlopt (algorithm nlopt:config) ())
@@ -69,6 +82,11 @@
 	 ((&slots log-of-all-priors) model)
 	 (likelihood (ba:initialize-likelihood model data))
 	 ((&values retval &ign opt-val) (nlopt:optimization likelihood algorithm)))
+    ;; fixme: this needs to go into nlopt
+    (if (< retval 0)
+	(error 'nlopt-couldnt-optimize
+	       :explanation (nlopt:docstring 'nlopt:nlopt-result retval)
+	       :nlopt-result (nlopt:get-symbol 'nlopt:nlopt-result retval)))
     (make-instance 'nlopt-result
 		   :f-val opt-val
 		   :model model
@@ -97,7 +115,7 @@
     (- f (log d))))
 
 
-(defun laplacian-approximation (nlopt-result parameter no-bins)
+(defun laplacian-approximation (nlopt-result parameter no-bins &key on-center)
   (let+ ((marginalize-keyword (alexandria:make-keyword (w/suffix-slot-category :marginalize parameter)))
 	 ((&slots model data algorithm) nlopt-result)
 	 (model-to-optimize (copy-object model marginalize-keyword nil))
@@ -115,7 +133,10 @@
       (finally (return
 		 (let ((integral (sumlogexp f-of-xs)))
 		   (mapcar #'(lambda (x ln-of-p*L)
-			       (list x (exp (- ln-of-p*L integral))))
+			       (list (if on-center
+					 (- x (/ (+ max min) 2d0))
+					 x)
+				     (exp (- ln-of-p*L integral))))
 			   xs f-of-xs)))))))
 
 
