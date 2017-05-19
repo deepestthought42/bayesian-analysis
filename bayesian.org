@@ -601,26 +601,34 @@ Next: example on how to use it:
 #+BEGIN_SRC lisp :results none
 (in-package #:penning-analysis)
 
-(let ((params (fp:get-init-params-from-midas-file *test-file* 10d0
-						  ;:om-c-prior-mu 3.2225414d7
-						  :om-c-prior-mu 3.2225414d7
-;						  :om-c 3.22257d7
-;						  :om-c-min 3.222550d7
-;						  :om-c-max 3.22257d7
-						  :om-c-prior-sigma 0.1d0
-						  :rho-m0 4d-4
-						  :rho-m0-min 1d-4
-						  :rho-m0-max 1d-3)))
-  (defparameter *res*
-    (ba:find-optimum (make-instance 'ba:nlopt)
-		     (apply #'make-instance 'fp:bayes-konig params)
-		     (ba:initialize-from-source 'fp:bayes-tof
-						(tof-data:data *test-file* 1
-							       :min-tof 20d0
-							       :max-tof 50d0
-							       :min-no-ions 4
-							       :max-no-ions 5)))))
+(defparameter *data*
+  (tof-data:data *test-file* 1
+		 :min-tof 20d0
+		 :max-tof 50d0
+		 :min-no-ions 4
+		 :max-no-ions 5))
 
+(let ((params (fp:get-init-params-from-midas-file
+	       ,*test-file* 4d0
+	       :om-c-prior (make-instance 'ba:gaussian-prior :mu 3.222544d7 :sigma 10d0)
+	       :tof-offset-prior :jeffreys
+	       :rho-m0 4d-4
+	       :rho-m0-min 1d-4
+	       :rho-m0-max 1d-3)))
+  (defparameter *res*
+    (ba:find-optimum (make-instance 'ba:nlopt :algorithm nlopt:+nlopt_ln_neldermead+)
+		     (apply #'make-instance 'fp:bayes-konig params)
+		     (ba:initialize-from-source 'fp:bayes-tof *data*))))
+
+
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+    (ba:plot-result-model (ba:get-parameter-results *res*))
+    (cmd "unset output")))
 
 (progn
   (defun test-gaussian ()
@@ -637,26 +645,16 @@ Next: example on how to use it:
 		  (no-steps 200)
 		  (prior (aref (ba::log-of-all-priors-array model) 0)))
 	     (iter
-	       (for x from fp::om-c-min to fp::om-c-max
-		    by (/ (- fp::om-c-max fp::om-c-min) no-steps))
+	       (with diff = (- fp::om-c-max fp::om-c-min))
+	       (for x from fp::om-c-min to fp::om-c-max by (/ diff no-steps))
 	       (setf (fp::om-c model) x)
-	       (collect (list (- x fp::om-c-min)
+	       (collect (list (- x (+ fp::om-c-min (/ diff 2)))
 			      (funcall prior)))))
 	   "with lines"))) 
 	(cmd "unset output")))))
 
+
 (test-gaussian)
-
-
-
-
-(labels ((cmd (fmt-str &rest args)
-	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-  (mgl-gnuplot:with-session ()
-    (cmd "reset")
-    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
-    (ba:plot-result-model (ba:get-parameter-results *res*))
-    (cmd "unset output")))
 
 
 (labels ((cmd (fmt-str &rest args)
@@ -761,6 +759,11 @@ Next: example on how to use it:
 - now, let's plot the priors to see that the gaussian actually looks
   like it is supposed to look like (and maybe the jeffreys as well ...)
 - okay then, there was a small mistake in the gaussians
+- commit: [[orgit-rev:~/phd/src/penning-analysis.project/bayesian-analysis/::581f657][~/phd/src/penning-analysis.project/bayesian-analysis/ (magit-rev 581f657)]]
+- need to rework the prior mechanism into something that is more
+  generic, maybe make a class of it
+- probably the way to go: method that specializes either on symbol
+  (:certain, :jeffreys, :uniform) or object, like gaussian
 ** TODO testing
 - [ ] model comparison
 - [ ] fits

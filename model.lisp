@@ -56,11 +56,9 @@
 
 (defparameter *slot-type<->suffixes*
   '((:marginalize -marginalize)
-    (:prior-type -prior-type)
+    (:prior -prior)
     (:min -min)
     (:max -max)
-    (:prior-mu -prior-mu)
-    (:prior-sigma -prior-sigma)
     (:sample-sigma -sample-sigma)
     (:sample-type -sample-type)
     (:description -description)))
@@ -77,7 +75,12 @@
 	  name-with-suffix))))
  
 
+(defun get-value-of-slot/cat (category slot-name object)
+  (slot-value object (w/suffix-slot-category category slot-name)))
 
+
+(defun get-slot-name/cat (cat name)
+    (w/suffix-slot-category cat name))
 
 
 
@@ -91,7 +94,7 @@
 						(sample-type :gaussian)
 						(marginalize nil)
 						(description "")
-						(prior-type :certain))
+						(prior :certain))
   (labels ((make-default-param (name use-default default-value &optional coerce)
 	     (if (not use-default)
 		 `(error ,(format nil "No value known for parameter: ~a" name))
@@ -109,8 +112,8 @@
     `((,name :accessor ,name :initarg ,(alexandria:make-keyword name)
 	     :initform ,(make-default-param name t default t))
       ,(standard-slot :marginalize t marginalize)
-      ,(standard-slot :prior-type t prior-type)
-      ,@(if (eql prior-type :gaussian)
+      ,(standard-slot :prior t prior)
+      ,@(if (eql prior :gaussian)
 	    (list (standard-slot :prior-mu t prior-mu)
 		  (standard-slot :prior-sigma t prior-sigma)))
       ,(standard-slot :min t min t)

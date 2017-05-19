@@ -74,7 +74,11 @@ difference (defaults to machine-epsilon).
   ((parameter :accessor parameter :initarg :parameter :initform :unknown)))
 
 (define-condition parameter-out-of-range (error)
-  ((parameter :accessor parameter :initarg :parameter :initform :unknown)))
+  ((parameter :accessor parameter :initarg :parameter :initform :unknown)
+   (description :accessor description :initarg :description :initform ""))
+  (:report (lambda (c stream)
+	     (format stream "Parameter ~a is out of range.~%~a"
+		     (parameter c) (description c)))))
 
 (define-condition unknown-sampling-type (error)
   ((type-not-known :accessor type-not-known :initarg :type-not-known

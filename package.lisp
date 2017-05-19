@@ -51,6 +51,8 @@
    #:no-parameters-to-marginalize
    #:nlopt
    #:nlopt-result
-   #:copy-object)
+   #:copy-object
+   #:gaussian-prior
+   #:mu)
   (:nicknames ba))
 
