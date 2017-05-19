@@ -20,8 +20,6 @@
    (sample-new-parameters :initarg :sample-new-parameters :accessor sample-new-parameters)
    (new-sample? :accessor new-sample? :initarg :new-sampled? :initform t)
    (object-documentation :initarg :object-documentation :accessor object-documentation)
-   (rng :accessor rng :initarg :rng
-	:initform (gsl-cffi:get-random-number-generator gsl-cffi::*mt19937_1999*))
    (model-function :reader model-function)
    (cache :reader cache)
    (f_i :reader f_i)
@@ -59,8 +57,7 @@
     (:prior -prior)
     (:min -min)
     (:max -max)
-    (:sample-sigma -sample-sigma)
-    (:sample-type -sample-type)
+    (:sampler -sampler)
     (:description -description)))
 
 
@@ -82,16 +79,16 @@
 (defun get-slot-name/cat (cat name)
     (w/suffix-slot-category cat name))
 
+(defparameter *default-sampler*
+  (make-instance 'gaussian-sampler))
 
-
-(defun make-slot-specifiers-for-parameter (enable-samplers name 
+(defun make-slot-specifiers-for-parameter (name 
 					   &key (default 0d0)
 						(min 0d0)
 						(max 0d0)
 						(prior-mu (/ (+ max min) 2d0))
 						(prior-sigma (if (= min max) 1d0 (/ (- max min) 2d0)))
-						(sample-sigma 0.1d0)
-						(sample-type :gaussian)
+						(sampler 'ba:*default-sampler*)
 						(marginalize nil)
 						(description "")
 						(prior :certain))
@@ -113,14 +110,9 @@
 	     :initform ,(make-default-param name t default t))
       ,(standard-slot :marginalize t marginalize)
       ,(standard-slot :prior t prior)
-      ,@(if (eql prior :gaussian)
-	    (list (standard-slot :prior-mu t prior-mu)
-		  (standard-slot :prior-sigma t prior-sigma)))
       ,(standard-slot :min t min t)
       ,(standard-slot :max t max t)
-      ,@(if enable-samplers
-	    (list (standard-slot :sample-type t sample-type)
-		  (standard-slot :sample-sigma t sample-sigma t)))
+      ,(standard-slot :sampler t sampler)
       ,(standard-slot :description t description))))
 
 
@@ -137,7 +129,7 @@
 				   :element-type 'double-float)))
 
 (defun make-initialize-after-code (class-name model-function-name parameters documentation
-				   model-prior-code no-independent-parameters enable-samplers
+				   model-prior-code no-independent-parameters 
 				   f_i-name y_i-name err_i-name y_i-f_i-name y_i-f_i/err_i-name)
   `(defmethod initialize-instance :after ((object ,class-name) &rest initargs &key &allow-other-keys)
      (labels ((l-model-prior () ,(if model-prior-code model-prior-code '1d0)))
@@ -157,7 +149,7 @@
        (setf (slot-value object p) (coerce (slot-value object p)
 					   'double-float)))
      (--init--priors object)
-     ,@(if enable-samplers `((--init--sampling-functions object)))
+     (--init--sampling-functions object)
      (--init--cache object ,no-independent-parameters)))
 
 
@@ -206,8 +198,8 @@
      (--acc--initialize object no-iterations)))
 
 
-(defun make-model-class-and-coby-object (name enable-samplers parameters)
-  (let+ ((all-slot-specifiers (mapcan #'(lambda (s) (apply #'make-slot-specifiers-for-parameter enable-samplers s))
+(defun make-model-class-and-coby-object (name parameters)
+  (let+ ((all-slot-specifiers (mapcan #'(lambda (s) (apply #'make-slot-specifiers-for-parameter s))
 				       parameters)))
     `((defclass ,name (bayesian-analysis:model)
 	(,@all-slot-specifiers))
@@ -236,8 +228,7 @@
 
 
 
-(defmacro define-bayesian-model ((name data-type &key model-prior-code documentation
-						      (enable-samplers t)) 
+(defmacro define-bayesian-model ((name data-type &key model-prior-code documentation) 
 				 (&rest model-parameters)
 				 (likelihood-type &key equal-sigma-parameter)
 				 ((&rest independent-parameters) &body model-function-body))
@@ -255,9 +246,9 @@
 	 (no-independent-params (length independent-parameters)))
 	(%check-likelihood-params likelihood-type equal-sigma-parameter)
 	`(progn
-	   ,@(make-model-class-and-coby-object name enable-samplers model-parameters)
+	   ,@(make-model-class-and-coby-object name model-parameters)
 	   ,(make-initialize-after-code name model-function-name (mapcar #'first model-parameters)
-					documentation model-prior-code no-independent-params enable-samplers
+					documentation model-prior-code no-independent-params
 					f_i-name y_i-name err_i-name y_i-f_i-name y_i-f_i/err_i-name)
 	   ,(make-accumulator-method name)
 	   ,model-function-code

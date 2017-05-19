@@ -53,6 +53,8 @@
    #:nlopt-result
    #:copy-object
    #:gaussian-prior
-   #:mu)
+   #:mu
+   #:*default-sampler*
+   #:gaussian-sampler)
   (:nicknames ba))
 

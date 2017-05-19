@@ -605,20 +605,22 @@ Next: example on how to use it:
   (tof-data:data *test-file* 1
 		 :min-tof 20d0
 		 :max-tof 50d0
-		 :min-no-ions 4
+		 :min-no-ions 1
 		 :max-no-ions 5))
 
 (let ((params (fp:get-init-params-from-midas-file
-	       ,*test-file* 4d0
-	       :om-c-prior (make-instance 'ba:gaussian-prior :mu 3.222544d7 :sigma 10d0)
-	       :tof-offset-prior :jeffreys
+	       ,*test-file* 40d0
+	       :om-c-prior (make-instance 'ba:gaussian-prior :mu 3.222541d7 :sigma 10d0)
+	       :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
 	       :rho-m0 4d-4
 	       :rho-m0-min 1d-4
 	       :rho-m0-max 1d-3)))
   (defparameter *res*
-    (ba:find-optimum (make-instance 'ba:nlopt :algorithm nlopt:+nlopt_ln_neldermead+)
-		     (apply #'make-instance 'fp:bayes-konig params)
-		     (ba:initialize-from-source 'fp:bayes-tof *data*))))
+    (ba:find-optimum
+     (make-instance 'ba:nlopt :algorithm nlopt:+nlopt_ln_neldermead+)
+;     (make-instance 'ba:metropolis-hastings :no-iterations 20000)
+     (apply #'make-instance 'fp:bayes-konig params)
+     (ba:initialize-from-source 'fp:bayes-tof *data*))))
 
 
 
@@ -627,8 +629,23 @@ Next: example on how to use it:
   (mgl-gnuplot:with-session ()
     (cmd "reset")
     (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
-    (ba:plot-result-model (ba:get-parameter-results *res*))
+    (ba:plot-result-model (ba:get-parameter-results *res* :start 1000))
     (cmd "unset output")))
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+    (ba:plot-parameter-distribution
+     (ba:get-parameter-results *res* :start 1000) 'fp::tof-offset)
+    (cmd "unset output")))
+
+
+
+
+(test-gaussian)
+
 
 (progn
   (defun test-gaussian ()
@@ -652,31 +669,6 @@ Next: example on how to use it:
 			      (funcall prior)))))
 	   "with lines"))) 
 	(cmd "unset output")))))
-
-
-(test-gaussian)
-
-
-(labels ((cmd (fmt-str &rest args)
-	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-  (mgl-gnuplot:with-session ()
-    (cmd "reset")
-    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
-;    (cmd "set logscale x")
-    (let ((d (ba::laplacian-approximation *res* 'fp::om-c 100 :on-center t)))
-     (mgl-gnuplot:plot*
-      (list
-       (mgl-gnuplot:data* d "u 1:2 with steps title 'laplacian approx. for posterior'"))))
-    (cmd "unset output")))
-
-
-
-
-
-
-
-
-
 #+END_SRC
 *** logbook
 - [2017-05-16 Tue 10:33] continuing logbook here

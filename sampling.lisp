@@ -1,57 +1,42 @@
 (in-package #:bayesian-analysis)
 
 
+(defgeneric get-sampler (sampler-type ))
 
 
 
-(defun gaussian-lambda (rng sigma object slot-name)
-  (if *debug-function*
-      #'(lambda ()
-	  (let+ ((old (slot-value object slot-name))
-		 (new (+ old (gsl-cffi:random-gaussian rng sigma))))
-	    (debug-out :info :sample "Gaussian draw for: ~a, old: ~,10d, new: ~,10d"
-		       slot-name old new)))
-      #'(lambda ()
-	  (setf (slot-value object slot-name)
-		(+ (slot-value object slot-name)
-		   (gsl-cffi:random-gaussian rng sigma))))))
+(defclass sampler ()
+  ((rng :initarg :rng :accessor rng 
+	:initform (gsl-cffi:get-random-number-generator gsl-cffi::*mt19937_1999* 11))))
 
+(defclass gaussian-sampler (sampler)
+  ((sigma :accessor sigma :initarg :sigma :initform 0.1d0)))
 
+(defgeneric get-sampling-lambda (sampler object slot-name))
 
-(defparameter *sampling-types*
-  '((:gaussian gaussian-lambda)))
+(defmethod get-sampling-lambda ((sampler gaussian-sampler) object slot-name)
+  (let+ (((&slots rng sigma) sampler))
+    #'(lambda ()
+	(setf (slot-value object slot-name)
+	      (+ (slot-value object slot-name)
+		 (gsl-cffi:random-gaussian rng sigma))))))
 
-
-
-
-(defun find-sampling-type (type &key (type-list *sampling-types*))
-  (alexandria:if-let (type (find type type-list :key #'first))
-    type (error 'unknown-sampling-type :type-not-known type)))
-
-
-
-(defun get-sampling-creator (type &key (type-list *sampling-types*))
-  (second (find-sampling-type type :type-list type-list)))
 
 
 ;;; model object initialization code goes here
 
 
 (defun --init--sampling-fn-array (object parameters-to-marginalize)
-  (labels ((sn (cat name)
-	     (w/suffix-slot-category cat name))
-	   (sv (cat name)
-	     (slot-value object (sn cat name))))
-    (let+ ((no-samplers (1+ (length parameters-to-marginalize)))
-	   (sampler-array (make-array no-samplers :element-type '(function ())
-						  :initial-element #'(lambda () (setf (new-sample? object) t))))
-	   ((&slots rng) object))
-      (iter
-	(for slot-name in-sequence parameters-to-marginalize with-index i)
-	(for sampler = (funcall (get-sampling-creator (sv :sample-type slot-name))
-				rng (sv :sample-sigma slot-name) object slot-name))
-	(setf (aref sampler-array i) sampler)
-	(finally (return (values sampler-array no-samplers)))))))
+  (let+ ((no-samplers (1+ (length parameters-to-marginalize)))
+	 (sampler-array (make-array no-samplers :element-type '(function ())
+						:initial-element #'(lambda () (setf (new-sample? object) t)))))
+    (iter
+      (for slot-name in-sequence parameters-to-marginalize with-index i)
+      (for slot-val = (get-value-of-slot/cat :sampler slot-name object))
+      (for sampler = (if (listp slot-val) (apply #'make-instance slot-val) slot-val))
+      (for sampling-lambda = (get-sampling-lambda sampler object slot-name))
+      (setf (aref sampler-array i) sampling-lambda)
+      (finally (return (values sampler-array no-samplers))))))
 
 
 
