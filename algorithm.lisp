@@ -26,14 +26,14 @@
 (defgeneric bin-parameter-values (result parameter &key start end))
 (defgeneric get-parameter-results (result &key start end))
 
-(defun %calculate-confidance (array no-iterations confidance-level)
+(defun %calculate-confidance (array normalized-to confidance-level)
   (let+ ((sorted (sort (copy-seq array) #'> :key #'second)))
     (iter
       (for (x counts) in-sequence sorted)
       (sum counts into summed)
       (maximize x into max)
       (minimize x into min)
-      (if (>= (/ summed no-iterations) confidance-level)
+      (if (>= summed (* normalized-to confidance-level))
 	  (return (values min max)))
       (finally (error "Huh ? Couldn't calculate confidance interval.")))))
 

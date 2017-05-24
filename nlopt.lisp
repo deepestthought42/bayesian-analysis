@@ -19,14 +19,14 @@
 
 
 (defclass nlopt-result (optimization-result)
-  ((model :initarg :model :accessor model 
-	  :initform (error "Must initialize result-model."))
-   (nlopt-result :initarg :nlopt-result :accessor nlopt-result 
+  ((nlopt-result :initarg :nlopt-result :accessor nlopt-result 
 		 :initform (error "Must initialize nlopt-result."))
    (f-val :initarg :f-val :accessor f-val 
 	  :initform (error "Must initialize f-val."))
    (likelihood :initarg :likelihood :accessor likelihood 
-	       :initform (error "Must initialize likelihood."))))
+	       :initform (error "Must initialize likelihood."))
+   (model :initarg :model :accessor model 
+	  :initform (error "Must initialize model."))))
 
 
 ;; implementation of cffi-nlopt api
@@ -130,17 +130,46 @@
       (collect ln-of-p*L into f-of-xs)
       (maximize ln-of-p*L into max-ln-of-p*L)
       (minimize ln-of-p*L into min-ln-of-p*L)
-      (finally (return
-		 (let ((integral (sumlogexp f-of-xs)))
-		   (mapcar #'(lambda (x ln-of-p*L)
-			       (list (if on-center
-					 (- x (/ (+ max min) 2d0))
-					 x)
-				     (exp (- ln-of-p*L integral))))
-			   xs f-of-xs)))))))
+      (finally
+       (return
+	 (iter
+	   (with integral = (sumlogexp f-of-xs))
+	   (with result-array = (make-array (length f-of-xs)))
+	   (for i initially 0 then (1+ i))
+	   (for x in xs)
+	   (for f in f-of-xs)
+	   (setf (aref result-array i)
+		 (list (if on-center (- x (/ (+ max min) 2d0)) x)
+		       (exp (- f integral))))
+	   (finally (return (values result-array min max)))))))))
 
 
 
+
+(defmethod bin-parameter-values ((result nlopt-result) parameter
+				 &key (no-bins 100) (start 0) end (confidence-level 0.69))
+  (declare (ignore start end))
+  
+  (let+ (((&values binned min max)
+	  (laplacian-approximation result parameter no-bins)))
+    ;; processing
+    (iter
+      (with median = (/ (- max min) 2))
+      (with first-time = t)
+      (with median-index = 0)
+      (with counts = 0)
+      (for (x c) in-sequence binned with-index i)
+      (maximize c into max-counts)
+      (incf counts c)
+      (if (and first-time (>= counts 0.5d0))
+	  (setf first-time nil
+		median (car (aref binned i)) 
+		median-index i))
+      (finally
+       (let+ (((&values min max)
+	       (%calculate-confidance binned 1d0 confidence-level)))
+	 (return (values (map 'list #'identity binned)
+			 median min max max-counts)))))))
 
 (defmethod get-parameter-results ((result nlopt-result)
 				  &key (start 0) end (confidence-level 0.69)
@@ -149,14 +178,20 @@
 	 ((&slots model-parameters-to-marginalize) input-model)
 	 (param-infos (iter
 			(for p in model-parameters-to-marginalize)
-			(collect (make-instance 'parameter-distribution
-						:name p
-						:median (coerce (slot-value model p) 'double-float)
-						:confidence-level confidence-level
-						:confidence-min 0d0
-						:confidence-max 0d0
-						:max-counts 0
-						:binned-data nil)))))
+			(let+ (((&values binned-data median min max max-counts)
+				(bin-parameter-values result p
+						      :no-bins no-bins
+						      :start start :end end
+						      :confidence-level confidence-level)))
+			  (setf (slot-value model p) (coerce median 'double-float))
+			  (collect (make-instance 'parameter-distribution
+						  :name p
+						  :median median
+						  :confidence-level confidence-level
+						  :confidence-min min
+						  :confidence-max max
+						  :max-counts max-counts
+						  :binned-data binned-data))))))
     (make-instance 'optimized-parameters
 		   :algorithm-result result
 		   :parameter-infos param-infos

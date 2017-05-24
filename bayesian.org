@@ -1,7 +1,7 @@
 * docker stuff
 ** start sly
 #+BEGIN_SRC emacs-lisp :results none
-(docker/start-sbcl-with-sly "bayesian-analysis" "deepestthought42/sbcl-1.3.15-bayesian-analysis:20170518"
+(docker/start-sbcl-with-sly "bayesian-analysis" "deepestthought42/sbcl-1.3.15-bayesian-analysis:20170522"
                             '(("/home/renee/phd/src/penning-analysis.project/" "/src/")
                               ("/home/renee/phd/data_analysis/201607CD_In/" "/data_analysis/")
                               ("/home/renee/phd/data_analysis/fitting_cross_check/" "/fitting_cross_check/")
@@ -14,6 +14,8 @@
 | [2017-05-02 Tue 22:05] | installed nlopt                    |
 | [2017-05-17 Wed 12:07] | installed libblas, lapack          |
 | [2017-05-18 Thu 11:30] | symbols seem to have been mixed up |
+| [2017-05-22 Mon 17:43] | changed distro to elementary       |
+
 
 
 ** prepare session
@@ -609,16 +611,18 @@ Next: example on how to use it:
 		 :max-no-ions 5))
 
 (let ((params (fp:get-init-params-from-midas-file
-	       ,*test-file* 40d0
-	       :om-c-prior (make-instance 'ba:gaussian-prior :mu 3.222541d7 :sigma 10d0)
+	       ,*test-file* 4d0
+	       ;:om-c-prior (make-instance 'ba:gaussian-prior :mu 3.222541d7 :sigma 10d0)
 	       :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
+	       :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
+	       :tof-offset-min 0d0 :tof-offset-max 2d0
 	       :rho-m0 4d-4
-	       :rho-m0-min 1d-4
-	       :rho-m0-max 1d-3)))
+	       :rho-m0-min 2d-4
+	       :rho-m0-max 6d-4)))
   (defparameter *res*
     (ba:find-optimum
      (make-instance 'ba:nlopt :algorithm nlopt:+nlopt_ln_neldermead+)
-;     (make-instance 'ba:metropolis-hastings :no-iterations 20000)
+;     (make-instance 'ba:metropolis-hastings :no-iterations 50000)
      (apply #'make-instance 'fp:bayes-konig params)
      (ba:initialize-from-source 'fp:bayes-tof *data*))))
 
@@ -636,10 +640,27 @@ Next: example on how to use it:
 	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
   (mgl-gnuplot:with-session ()
     (cmd "reset")
-    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
     (ba:plot-parameter-distribution
-     (ba:get-parameter-results *res* :start 1000) 'fp::tof-offset)
+     (ba:get-parameter-results *res* :start 2000 :no-bins 50) 'fp::om-c)
     (cmd "unset output")))
+
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+    (mgl-gnuplot:plot*
+     (list
+      (mgl-gnuplot:data*
+       (map 'list #'identity (ba::laplacian-approximation *res* 'fp::rho-m0 100 :on-center nil))
+       "with steps"))) 
+    (cmd "unset output")))
+
+
+
+
 
 
 
@@ -723,7 +744,7 @@ Next: example on how to use it:
                                                  :om-c-sample-sigma 0.5d0
                                                  :rho-m0 1d-4
                                                  :tof-offset-marginalize nil)))
-    (iter
+                                                 (iter
       (with k = (apply #'make-instance 'fp:bayes-konig (get-params)))
       (for tof-offset from -1d0 to 1d0 by 0.1d0)
       (setf (fp::tof-offset k) tof-offset)
@@ -756,6 +777,39 @@ Next: example on how to use it:
   generic, maybe make a class of it
 - probably the way to go: method that specializes either on symbol
   (:certain, :jeffreys, :uniform) or object, like gaussian
+- [2017-05-23 Tue 13:55] implementing parameter results for nlopt results
+- so, how do I determine min max for nlopt results ? For mcmc results
+  that was easy, since we could just take the min/max of the iteration values
+- let's start by using the prior range and then maybe think of something else
+- mmmh, laplacian-approximation doesn't work anymore for rho-m0 ?
+- ok, I'm probably not copying the model and then the parameter set
+  last for calculating the binned data stays
+- let's see where I actually set parameters
+- laplacian-approximation sets slots, but it makes copies, let's test
+  if that could be the problem:
+  #+BEGIN_SRC lisp :results none
+  (in-package #:penning-analysis)
+
+
+
+  (labels ((cmd (fmt-str &rest args)
+             (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+    (mgl-gnuplot:with-session ()
+      (cmd "reset")
+      (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+      (ba::laplacian-approximation *res* 'fp::rho-m0 100 :on-center nil)
+      (ba::laplacian-approximation *res* 'fp::om-c 100 :on-center nil)
+      (mgl-gnuplot:plot*
+       (list
+        (mgl-gnuplot:data*
+         (map 'list #'identity (ba::laplacian-approximation *res*
+                                                            'fp::tof-offset 300
+                                                            :on-center nil))
+         "with steps"))) 
+      (cmd "unset output")))
+  #+END_SRC
+- the above works w/o problems, so that shouldn't be it
+- ok, it is probably the median setting that I do with :on-center t
 ** TODO testing
 - [ ] model comparison
 - [ ] fits
