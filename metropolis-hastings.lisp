@@ -92,20 +92,9 @@
 	 (end (if end end no-iterations))
 	 (param-infos (iter
 			(for p in model-parameters-to-marginalize)
-			(let+ (((&values binned-data median min max max-counts)
-				(bin-parameter-values result p
-						      :no-bins no-bins
-						      :start start :end end
-						      :confidence-level confidence-level)))
-			  (setf (slot-value model p) (coerce median 'double-float))
-			  (collect (make-instance 'parameter-distribution
-						  :name p
-						  :median median
-						  :confidence-level confidence-level
-						  :confidence-min min
-						  :confidence-max max
-						  :max-counts max-counts
-						  :binned-data binned-data))))))
+			(for param-dist = (make-parameter-distribution result p no-bins start end confidence-level))
+			(setf (slot-value model p) (coerce (median param-dist) 'double-float))
+			(collect param-dist))))
     (make-instance 'optimized-parameters
 		   :algorithm-result result
 		   :parameter-infos param-infos

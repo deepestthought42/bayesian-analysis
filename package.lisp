@@ -55,6 +55,16 @@
    #:gaussian-prior
    #:mu
    #:*default-sampler*
-   #:gaussian-sampler)
+   #:gaussian-sampler
+   #:get-parameter-info
+   #:name
+   #:median
+   #:confidence-level
+   #:confidence-min
+   #:confidence-max
+   #:relative-error
+   #:absolute-error
+   #:max-counts
+   #:binned-data)
   (:nicknames ba))
 

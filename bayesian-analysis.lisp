@@ -18,6 +18,10 @@
 (defgeneric bayesian-analysis:initialize-accumulator (model no-iterations)
   (:documentation "Initialize an accumulator object for model MODEL
   with NO-ITERATIONS number of iterations."))
+;;; results api
+
+(defgeneric get-parameter-info (optimized-params parameter-name))
+
 
 ;;; data api
 
@@ -62,6 +66,8 @@ difference (defaults to machine-epsilon).
 "))
 
 
+
+
 ;;; conditions
 
 (define-condition couldnt-optimize (error) ())
@@ -87,7 +93,13 @@ difference (defaults to machine-epsilon).
 
 (define-condition incongruent-data (simple-condition) ())
 (define-condition wrong-data-type (simple-condition) ())
-(define-condition unknown-parameter (simple-condition) ())
+
+(define-condition unknown-parameter (simple-condition)
+  ((parameter-name :accessor parameter-name :initarg :parameter-name
+		   :initform nil))
+  (:report (lambda (c stream)
+	     (format stream "Unknown parameter: ~a" (parameter-name c)))))
+
 (define-condition wrong-number-of-arguments (program-error)
   ((explanation :accessor explanation :initarg :explanation :initform "")
    (offending-symbol :accessor offending-symbol :initarg :offending-symbol :initform nil)))

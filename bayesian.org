@@ -619,12 +619,34 @@ Next: example on how to use it:
 	       :rho-m0 4d-4
 	       :rho-m0-min 2d-4
 	       :rho-m0-max 6d-4)))
-  (defparameter *res*
+  (defparameter *res-nlopt*
     (ba:find-optimum
      (make-instance 'ba:nlopt :algorithm nlopt:+nlopt_ln_neldermead+)
-;     (make-instance 'ba:metropolis-hastings :no-iterations 50000)
+;     (make-instance 'ba:metropolis-hastings :no-iterations 100000)
      (apply #'make-instance 'fp:bayes-konig params)
      (ba:initialize-from-source 'fp:bayes-tof *data*))))
+
+
+
+(let ((params (fp:get-init-params-from-midas-file
+	       ,*test-file* 4d0
+	       ;:om-c-prior (make-instance 'ba:gaussian-prior :mu 3.222541d7 :sigma 10d0)
+	       :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
+	       :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
+	       :tof-offset-min 0d0 :tof-offset-max 2d0
+	       :rho-m0 4d-4
+	       :rho-m0-min 2d-4
+	       :rho-m0-max 6d-4)))
+  (defparameter *res-mcmc*
+    (ba:find-optimum
+;     (make-instance 'ba:nlopt :algorithm nlopt:+nlopt_ln_neldermead+)
+     (make-instance 'ba:metropolis-hastings :no-iterations 100000)
+     (apply #'make-instance 'fp:bayes-konig params)
+     (ba:initialize-from-source 'fp:bayes-tof *data*))))
+
+ ; => 3.2225415363402523d7
+
+
 
 
 
@@ -633,14 +655,17 @@ Next: example on how to use it:
   (mgl-gnuplot:with-session ()
     (cmd "reset")
     (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
-    (ba:plot-result-model (ba:get-parameter-results *res* :start 1000))
+    (cmd "set title 'mcmc'")
+    (ba:plot-result-model (ba:get-parameter-results *res-mcmc* :no-bins 100 :start 1000))
+;    (cmd "set title 'nlopt'")
+;    (ba:plot-result-model (ba:get-parameter-results *res-nlopt* :no-bins 100 :start 1000))
     (cmd "unset output")))
 
 (labels ((cmd (fmt-str &rest args)
 	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
   (mgl-gnuplot:with-session ()
     (cmd "reset")
-    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
     (ba:plot-parameter-distribution
      (ba:get-parameter-results *res* :start 2000 :no-bins 50) 'fp::om-c)
     (cmd "unset output")))
@@ -810,6 +835,83 @@ Next: example on how to use it:
   #+END_SRC
 - the above works w/o problems, so that shouldn't be it
 - ok, it is probably the median setting that I do with :on-center t
+- ok, solved that problem, now, if I compare om-c found with mcmc to
+  the one found with nlopt, they differ by two Hz, wtf ??
+- could this be a binning thing ?
+- doesn't depend (that much) on number of bins
+- ok, now I'm confused, the plot says exactly the same thing
+- yeah, that was stupid, it's because the plots are offset differently
+  as they have a different range -- *or are they* 
+  #+BEGIN_SRC lisp :results none
+  (-
+   (ba:median
+    (ba:get-parameter-info
+     (ba:get-parameter-results *res-mcmc* :start 2000 :no-bins 100 :start 1000) 'fp:om-c))
+   (ba:median
+    (ba:get-parameter-info
+     (ba:get-parameter-results *res-nlopt* :start 2000 :no-bins 100 :start 10000) 'fp:om-c)))
+
+
+  (list
+   (ba:absolute-error
+    (ba:get-parameter-info
+     (ba:get-parameter-results *res-mcmc* :start 2000 :no-bins 100 :start 1000
+                               :confidence-level 0.9d0) 'fp:om-c))
+   (ba:absolute-error
+    (ba:get-parameter-info
+     (ba:get-parameter-results *res-nlopt* :start 2000 :no-bins 100 :start 10000
+                               :confidence-level 0.9d0) 'fp:om-c)))
+
+  #+END_SRC
+- let's get back to that, but first I need to have some accessor
+  function to for ease of use:
+- o.k., with that is seems obvious that is quite a difference 
+- why then is the plot the same *--->* what am I doing when plotting ? 
+- just for giggles, start changing the binning *->* that made it even worse
+- ok, maybe that is actually what it is ... the fits are slightly different
+- I should compare it to what LM gives as an answer to be sure it is actually ok
+  #+BEGIN_SRC lisp
+  (defparameter *test-file* (midas:read-mpet-midas-file "/data_analysis/midas-files/20160630/run277347.mid"))
+
+  (defparameter *data*
+    (tof-data:data *test-file* 1
+                   :min-tof 20d0
+                   :max-tof 50d0
+                   :min-no-ions 1
+                   :max-no-ions 5))
+
+  (let ((params (fp:get-init-params-from-midas-file
+                 ,*test-file* 4d0
+                 :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
+                 :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
+                 :tof-offset-min 0d0 :tof-offset-max 2d0
+                 :rho-m0 4d-4
+                 :rho-m0-min 2d-4
+                 :rho-m0-max 6d-4)))
+    (defparameter *res-nlopt*
+      (ba:find-optimum
+       (make-instance 'ba:nlopt :algorithm nlopt:+nlopt_ln_neldermead+)
+       (apply #'make-instance 'fp:bayes-konig params)
+       (ba:initialize-from-source 'fp:bayes-tof *data*))))
+
+
+
+  (let+ ((lm-res (fp:om-c
+                  (pa:fit-model
+                   (pa:fit-run *test-file*
+                               (make-instance 'pa:run-constraints :tof-range '(20d0 50d0)
+                                                                  :no-ion-range '(1 5)
+                                                                  :tof-bin-width 0.2d0) 
+                               'fit-penning::konig :fit-rho-m0 t :rho-m0 5d-4 :om-m 38327.430373795476d0))))
+         (p-results (ba:get-parameter-results *res-nlopt* :start 2000 :no-bins 30 :start 10000))
+         (nl-res (ba:median (ba:get-parameter-info p-results 'fp:om-c))))
+    (values (/ (- lm-res nl-res)  (ba:absolute-error (ba:get-parameter-info p-results 'fp:om-c)))))
+  #+END_SRC
+
+  #+RESULTS:
+  : -0\.07924184698329063d0
+
+- ok, I can live with that
 ** TODO testing
 - [ ] model comparison
 - [ ] fits
