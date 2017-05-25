@@ -74,7 +74,7 @@
   (mgl-gnuplot:with-session ()
     (cmd "reset")
     (cmd "set terminal wxt enhanced font 'Georgia,12' dashed")
-    (plot-result-model
+    (plot-result
      (get-parameter-results
       (optimize (make-instance 'metropolis-hastings :no-iterations 100000)
 			    (make-instance 'quadratic :b-bin-width 0.001 :a-bin-width 0.001)
@@ -112,6 +112,6 @@
     (mgl-gnuplot:with-session ()
       (cmd "reset")
       (cmd "set terminal wxt enhanced font 'Georgia,12'")
-      (plot-result-model r2) 
+      (plot-result r2) 
       (cmd "unset output")))
   (calculate-odds-ratio-1/2 m1 m2 (initialize-from-source '1d-data t)))

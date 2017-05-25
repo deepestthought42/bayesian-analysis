@@ -3,7 +3,9 @@
 
 ;;; api
 
-(defgeneric plot-result-model (optimization-result &key))
+(defgeneric plot-result (optimization-result &key))
+(defgeneric plot-result-models (input-model result-model data &key))
+
 (defgeneric plot-iteration-values (mcmc-result &key (params-to-plot) (start) end (every)))
 (defgeneric plot-data (data &key))
 (defgeneric plot-likelihood (mcmc-result &key (start) end (every)))
@@ -105,40 +107,51 @@
 
 
 
-
-
-(defmethod plot-result-model ((result optimized-parameters)
-			      &key (no-steps 1000)
-				   (style-options/data "pt 7")
-				   (style-options/input "with lines lt 3 lw 0.3 lc 0 title 'input input-model'")
-				   (style-options/result "with lines lw 1.5 lc 7 title 'result input-model'")
-				   (enclose-in-plot t))
+(defmethod plot-result ((result optimized-parameters)
+			&key (no-steps 1000)
+			     (style-options/data "pt 7")
+			     (style-options/input "with lines lt 3 lw 0.3 lc 0 title 'input input-model'")
+			     (style-options/result "with lines lw 1.5 lc 7 title 'result input-model'")
+			     (enclose-in-plot t))
   (let+ (((&slots model data algorithm-result) result)
-	 ((&slots input-model) algorithm-result)
-	 (input-fun (ba:get-1d-plot-function input-model))
-	 (result-fun (ba:get-1d-plot-function model)))
-    (let+ (((&values plot-data x-label y-label min-x max-x offset)
-	    (get-plot-mgl-data-depending-on-type data style-options/data "" nil nil))
-	   ((&values model-input-data model-results-data)
-	    (if (= min-x max-x)
-		(values `((,(- min-x offset) ,(funcall input-fun min-x)))
-			`((,(- min-x offset) ,(funcall result-fun min-x))))
-		(iter
-		  (for x from min-x to max-x by (/ (- max-x min-x) no-steps))
-		  (collect (list (- x offset) (funcall input-fun x)) into id)
-		  (collect (list (- x offset) (funcall result-fun x)) into rd)
-		  (finally (return (values id rd)))))))
-      (labels ((cmd (fmt-str &rest args)
-		 (apply #'format t fmt-str args)
-		 (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-	(cmd "set xrange [~f:~f]" (- min-x offset) (- max-x offset))
-	(cmd "set xlabel '~a'" x-label )
-	(cmd "set ylabel '~a'" y-label))
-      (let ((d (list
-		plot-data
-		(mgl-gnuplot:data* model-input-data style-options/input)
-		(mgl-gnuplot:data* model-results-data style-options/result))))
-	(if enclose-in-plot (mgl-gnuplot:plot* d) d)))))
+	 ((&slots input-model) algorithm-result))
+    (plot-result-models input-model model data
+			:no-steps no-steps
+			:style-options/data style-options/data
+			:style-options/input style-options/input
+			:style-options/result style-options/result
+			:enclose-in-plot enclose-in-plot)))
+
+(defmethod plot-result-models ((input-model model) (result-model model) data 
+			       &key (no-steps 1000)
+				    (style-options/data "pt 7")
+				    (style-options/input "with lines lt 3 lw 0.3 lc 0 title 'input input-model'")
+				    (style-options/result "with lines lw 1.5 lc 7 title 'result input-model'")
+				    (enclose-in-plot t))
+  (let+ ((input-fun (ba:get-1d-plot-function input-model))
+	 (result-fun (ba:get-1d-plot-function result-model))
+	 ((&values plot-data x-label y-label min-x max-x offset)
+	  (get-plot-mgl-data-depending-on-type data style-options/data "" nil nil))
+	 ((&values model-input-data model-results-data)
+	  (if (= min-x max-x)
+	      (values `((,(- min-x offset) ,(funcall input-fun min-x)))
+		      `((,(- min-x offset) ,(funcall result-fun min-x))))
+	      (iter
+		(for x from min-x to max-x by (/ (- max-x min-x) no-steps))
+		(collect (list (- x offset) (funcall input-fun x)) into id)
+		(collect (list (- x offset) (funcall result-fun x)) into rd)
+		(finally (return (values id rd)))))))
+    (labels ((cmd (fmt-str &rest args)
+	       (apply #'format t fmt-str args)
+	       (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+      (cmd "set xrange [~f:~f]" (- min-x offset) (- max-x offset))
+      (cmd "set xlabel '~a'" x-label )
+      (cmd "set ylabel '~a'" y-label))
+    (let ((d (list
+	      plot-data
+	      (mgl-gnuplot:data* model-input-data style-options/input)
+	      (mgl-gnuplot:data* model-results-data style-options/result))))
+      (if enclose-in-plot (mgl-gnuplot:plot* d) d))))
 
 
 

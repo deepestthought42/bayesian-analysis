@@ -23,7 +23,7 @@
    #:get-error-parameters
    #:update-model-with-results
    #:parameter-result
-   #:plot-result-model
+   #:plot-result
    #:plot-iteration-values
    #:plot-data
    #:incongruent-data
@@ -65,6 +65,10 @@
    #:absolute-error
    #:max-counts
    #:binned-data
-   #:calculate-odds-ratio-2/1)
+   #:calculate-odds-ratio-2/1
+   #:model-parameters-to-marginalize
+   #:plot-result-models
+   #:input-model
+   #:algorithm)
   (:nicknames ba))
 

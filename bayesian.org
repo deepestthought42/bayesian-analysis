@@ -40,7 +40,71 @@ min, max, prior, etc should be immutable
 ** DONE work on likelihood code
 the current way of doing it seems overly complicated, let's not use a
 macro and create functions instead
+** TODO 2d model with nlopt
+let's see how 2d fitting works with nlopt
+*** data
+#+BEGIN_SRC lisp 
+(in-package #:penning-analysis)
 
+(defparameter *test-file* (midas:read-mpet-midas-file "/data_analysis/midas-files/20160630/run277347.mid"))
+
+(defparameter *data*
+  (tof-data:data *test-file* 1
+		 :min-tof 20d0
+		 :max-tof 50d0
+		 :min-no-ions 1
+		 :max-no-ions 2))
+
+(let ((params (fp:get-init-params-from-midas-file
+	       ,*test-file* 4d0
+
+	       :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
+	       :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
+	       :tof-offset-min 0.1d0 :tof-offset-max 1d0 :tof-offset 0.5d0
+	       :rho-m0 2d-4
+	       :rho-m0-min 1d-4
+	       :rho-m0-max 9d-4)))
+  (defparameter *res-nlopt-2d*
+    (ba:find-optimum
+     (make-instance 'ba:nlopt :max-time 5d0)
+     (apply #'make-instance 'fp:2d-bayes-konig params)
+     (ba:initialize-from-source 'fp:2d-tof-distribution *data*))))
+
+
+
+
+(ba:get-parameter-results  *res-nlopt-2d* :no-bins 10)
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+    (let+ (((&slots ba::input-model ba:model ba:data) *res-nlopt-2d*))
+      (mgl-gnuplot:plot*
+       (ba:plot-result-models ba:input-model ba:model ba:data))) 
+    (cmd "unset output")))
+
+
+
+#+END_SRC
+** TODO create likelihood function for different assumptions
+*** [ ] only x values
+let's see if I can do that already 
+#+BEGIN_SRC lisp
+(in-package #:fit-penning)
+
+
+
+
+#+END_SRC
+** TODO make use of provided priors
+** TODO introduce other types of error assumptions
+** TODO plotting methods stuff diff. than xys
+** TODO org output function
+this should be going into org integration, or at least a generic
+version of if
+** STARTED documentation
 ** NEEDS-TESTING get model comparison working
 [2017-05-24 Wed 14:21] as the last big thing to implement, start with model comparison
 *** Laplacian approximation
@@ -167,7 +231,7 @@ approximated with \ref{eq:lap-approx}.
 *** TODOs 
 **** TODO come up with something to compare this too 
 maybe from the book (Gregory)
-** TODO put public api in one place
+** WAITING put public api in one place
 file:./bayesian.lisp is probably the place to put it
 ** DONE introduce caching
 what determines if we use use a cached value ?
@@ -176,7 +240,347 @@ what determines if we use use a cached value ?
 
 the dependent parameters need to be able to take more than one
 parameter for the 2d analysis case
-** TODO org output function
+** DONE nlopt
+since Levenberg marquardt does not work for non-uniform priors, use
+nlopt to find maximum
+
+*** code to test
+setting up test code so we can test with a resonance, let's do this in
+the penning-analysis package, might be easier
+#+BEGIN_SRC lisp :results none
+(in-package #:penning-analysis)
+
+(defparameter *test-file* (midas:read-mpet-midas-file "/data_analysis/midas-files/20160630/run277347.mid"))
+
+(defparameter *d*
+
+  (tof-data:data *test-file* 1
+		 :min-tof 20d0 :max-tof 50d0 :min-no-ions 3 :max-no-ions 4))
+#+END_SRC
+
+
+Next: example on how to use it:
+#+BEGIN_SRC lisp :results none
+(in-package #:penning-analysis)
+
+(defparameter *data*
+  (tof-data:data *test-file* 1
+		 :min-tof 20d0
+		 :max-tof 50d0
+		 :min-no-ions 1
+		 :max-no-ions 5))
+
+(let ((params (fp:get-init-params-from-midas-file
+	       ,*test-file* 4d0
+	       ;:om-c-prior (make-instance 'ba:gaussian-prior :mu 3.222541d7 :sigma 10d0)
+	       :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
+	       :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
+	       :tof-offset-min 0.1d0 :tof-offset-max 1d0 :tof-offset 0.5d0
+	       :rho-m0 4d-4
+	       :rho-m0-min 2d-4
+	       :rho-m0-max 6d-4)))
+  (defparameter *res-nlopt*
+    (ba:find-optimum
+     (make-instance 'ba:nlopt :algorithm nlopt:+nlopt_ln_neldermead+)
+     (apply #'make-instance 'fp:bayes-konig params)
+     (ba:initialize-from-source 'fp:bayes-tof *data*))))
+
+(let ((params (fp:get-init-params-from-midas-file
+	       ,*test-file* 4d0
+	       ;:om-c-prior (make-instance 'ba:gaussian-prior :mu 3.222541d7 :sigma 10d0)
+	       :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
+	       :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
+	       :tof-offset-min 0.1d0 :tof-offset-max 1d0 :tof-offset 0.5d0
+	       :rho-m0 4d-4
+	       :rho-m0-min 2d-4
+	       :rho-m0-max 6d-4)))
+  (defparameter *res-nlopt-low-error*
+    (ba:find-optimum
+     (make-instance 'ba:nlopt :algorithm nlopt:+nlopt_ln_neldermead+)
+     (apply #'make-instance 'fp:bayes-konig params)
+     (ba:initialize-from-source 'fp:bayes-tof *data*))))
+
+
+(let ((params (fp:get-init-params-from-midas-file
+	       ,*test-file* 4d0
+	       ;:om-c-prior (make-instance 'ba:gaussian-prior :mu 3.222541d7 :sigma 10d0)
+	       :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
+	       :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
+	       :tof-offset-min 0d0 :tof-offset-max 2d0
+	       :rho-m0 4d-4
+	       :rho-m0-min 2d-4
+	       :rho-m0-max 6d-4)))
+  (defparameter *res-mcmc*
+    (ba:find-optimum
+;     (make-instance 'ba:nlopt :algorithm nlopt:+nlopt_ln_neldermead+)
+     (make-instance 'ba:metropolis-hastings :no-iterations 100000)
+     (apply #'make-instance 'fp:bayes-konig params)
+     (ba:initialize-from-source 'fp:bayes-tof *data*))))
+
+
+
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+    (cmd "set title 'mcmc'")
+    (ba:plot-result-model (ba:get-parameter-results *res-nlopt*))
+    (cmd "unset output")))
+
+(let ((ba::*use-sigma-f-min/max* 4))
+  (labels ((cmd (fmt-str &rest args)
+	     (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+    (mgl-gnuplot:with-session ()
+      (cmd "reset")
+      (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+      (ba:plot-parameter-distribution
+       (ba:get-parameter-results *res-nlopt* :start 2000 :no-bins 50) 'fp::tof-offset)
+      (cmd "unset output"))))
+
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+    (mgl-gnuplot:plot*
+     (list
+      (mgl-gnuplot:data*
+       (map 'list #'identity (ba::laplacian-approximation-marginal-posterior *res* 'fp::rho-m0 100 :on-center nil))
+       "with steps"))) 
+    (cmd "unset output")))
+
+
+
+
+
+
+
+
+(test-gaussian)
+
+
+(progn
+  (defun test-gaussian ()
+    (labels ((cmd (fmt-str &rest args)
+	       (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+      (mgl-gnuplot:with-session ()
+	(cmd "reset")
+	(cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+	(mgl-gnuplot:plot*
+	 (list
+	  (mgl-gnuplot:data*
+	   (let+ ((model (ba:copy-object (ba:model *res*)))
+		  ((&slots fp::om-c-min fp::om-c-max) model)
+		  (no-steps 200)
+		  (prior (aref (ba::log-of-all-priors-array model) 0)))
+	     (iter
+	       (with diff = (- fp::om-c-max fp::om-c-min))
+	       (for x from fp::om-c-min to fp::om-c-max by (/ diff no-steps))
+	       (setf (fp::om-c model) x)
+	       (collect (list (- x (+ fp::om-c-min (/ diff 2)))
+			      (funcall prior)))))
+	   "with lines"))) 
+	(cmd "unset output")))))
+#+END_SRC
+*** logbook
+- [2017-05-16 Tue 10:33] continuing logbook here
+- *problem:* the posterior distribution calculated for the laplacian
+  seems to be dependent on the range -- at least for the tof-offset and rho-m0
+- *also:* the determinant of the Fisher information matrix changes sign
+- actually, let's first make sure that it still works at all 
+- no, not really -- wish I had made a commit of the unfinished version
+  of it
+- so, what seems to be going on ? 
+- firstly, it finds the correct minimum
+- but the distribution for om-c is now flat (at zero)
+- no, first, try to see what happens, to the fit, when fixing a
+  parameter
+  #+BEGIN_SRC lisp
+  (in-package :penning-analysis)
+
+
+  (labels ((cmd (fmt-str &rest args)
+             (mgl-gnuplot:command (apply #'format nil fmt-str args)))
+           (get-params ()
+             (fp:get-init-params-from-midas-file *test-file* 10d0
+                                                 :om-c-sample-sigma 0.5d0
+                                                 :tof-offset-min -1d0
+                                                 :tof-offset 0d0
+                                                 :tof-offset-marginalize nil
+                                                 :tof-offset-max 1d0
+                                                 :tof-offset-sample-sigma 0.01d0
+                                                 :rho-m0-marginalize t
+                                                 :rho-m0-sample-sigma 1d-5)))
+    (let+ ((data)
+           (plots
+            (iter
+              (with k = (apply #'make-instance 'fp:bayes-konig (get-params)))
+              (for tof-offset from -5d0 to 5d0 by 1d0)
+              (setf (fp::tof-offset k) tof-offset)
+              (for opt = (ba:find-optimum (make-instance 'ba:nlopt) k
+                                          (ba:initialize-from-source 'fp:bayes-tof *d*)))
+              (for res = (ba:get-parameter-results opt))
+              (for (d input results) = (ba:plot-result-model res :enclose-in-plot nil))
+              (setf data d)
+              (collect results))))
+      (mgl-gnuplot:with-session ()
+        (cmd "reset")
+        (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+        (mgl-gnuplot:plot*
+         (append (list data) plots))
+        (cmd "unset output"))))
+
+  (labels ((get-params ()
+             (fp:get-init-params-from-midas-file *test-file* 10d0
+                                                 :om-c-sample-sigma 0.5d0
+                                                 :rho-m0 1d-4
+                                                 :tof-offset-marginalize nil)))
+                                                 (iter
+      (with k = (apply #'make-instance 'fp:bayes-konig (get-params)))
+      (for tof-offset from -1d0 to 1d0 by 0.1d0)
+      (setf (fp::tof-offset k) tof-offset)
+      (for opt = (ba:find-optimum (make-instance 'ba:nlopt) k
+                                  (ba:initialize-from-source 'fp:bayes-tof *d*)))
+      (collect (list (ba::nlopt-result opt)
+                     (ba::f-val opt)
+                     tof-offset))))
+  #+END_SRC
+
+  #+RESULTS:
+  : unset output
+- ok, that seems to make sense to me
+- let's look at copy object and see if we can amend it so it updates specific values
+- [2017-05-17 Wed 10:30] that made it work somehow
+- now, the determinant is still a problem ... let's fix that
+- [2017-05-18 Thu 16:10] seems, that the determinant isn't really a
+  problem (just taking the absolute, seems to work) and the inverse is
+  working now as well
+- commiting: [[orgit-rev:~/phd/src/penning-analysis.project/bayesian-analysis/::56ae9f2][~/phd/src/penning-analysis.project/bayesian-analysis/ (magit-rev 56ae9f2)]]
+- *next thing to do*, introduce proper gaussian prior
+- that probably involves more parameters, as min/max isn't enough
+- [2017-05-19 Fri 09:44] introduced gaussian prior
+- commit: [[orgit-rev:~/phd/src/penning-analysis.project/bayesian-analysis/::bb39265][~/phd/src/penning-analysis.project/bayesian-analysis/ (magit-rev bb39265)]]
+- now, let's plot the priors to see that the gaussian actually looks
+  like it is supposed to look like (and maybe the jeffreys as well ...)
+- okay then, there was a small mistake in the gaussians
+- commit: [[orgit-rev:~/phd/src/penning-analysis.project/bayesian-analysis/::581f657][~/phd/src/penning-analysis.project/bayesian-analysis/ (magit-rev 581f657)]]
+- need to rework the prior mechanism into something that is more
+  generic, maybe make a class of it
+- probably the way to go: method that specializes either on symbol
+  (:certain, :jeffreys, :uniform) or object, like gaussian
+- [2017-05-23 Tue 13:55] implementing parameter results for nlopt results
+- so, how do I determine min max for nlopt results ? For mcmc results
+  that was easy, since we could just take the min/max of the iteration values
+- let's start by using the prior range and then maybe think of something else
+- mmmh, laplacian-approximation-marginal-posterior doesn't work anymore for rho-m0 ?
+- ok, I'm probably not copying the model and then the parameter set
+  last for calculating the binned data stays
+- let's see where I actually set parameters
+- laplacian-approximation-marginal-posterior sets slots, but it makes copies, let's test
+  if that could be the problem:
+  #+BEGIN_SRC lisp :results none
+  (in-package #:penning-analysis)
+
+
+
+  (labels ((cmd (fmt-str &rest args)
+             (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+    (mgl-gnuplot:with-session ()
+      (cmd "reset")
+      (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+      (ba::laplacian-approximation-marginal-posterior *res* 'fp::rho-m0 100 :on-center nil)
+      (ba::laplacian-approximation-marginal-posterior *res* 'fp::om-c 100 :on-center nil)
+      (mgl-gnuplot:plot*
+       (list
+        (mgl-gnuplot:data*
+         (map 'list #'identity (ba::laplacian-approximation-marginal-posterior *res*
+                                                            'fp::tof-offset 300
+                                                            :on-center nil))
+         "with steps"))) 
+      (cmd "unset output")))
+  #+END_SRC
+- the above works w/o problems, so that shouldn't be it
+- ok, it is probably the median setting that I do with :on-center t
+- ok, solved that problem, now, if I compare om-c found with mcmc to
+  the one found with nlopt, they differ by two Hz, wtf ??
+- could this be a binning thing ?
+- doesn't depend (that much) on number of bins
+- ok, now I'm confused, the plot says exactly the same thing
+- yeah, that was stupid, it's because the plots are offset differently
+  as they have a different range -- *or are they* 
+  #+BEGIN_SRC lisp :results none
+  (-
+   (ba:median
+    (ba:get-parameter-info
+     (ba:get-parameter-results *res-mcmc* :start 2000 :no-bins 100 :start 1000) 'fp:om-c))
+   (ba:median
+    (ba:get-parameter-info
+     (ba:get-parameter-results *res-nlopt* :start 2000 :no-bins 100 :start 10000) 'fp:om-c)))
+
+
+  (list
+   (ba:absolute-error
+    (ba:get-parameter-info
+     (ba:get-parameter-results *res-mcmc* :start 2000 :no-bins 100 :start 1000
+                               :confidence-level 0.9d0) 'fp:om-c))
+   (ba:absolute-error
+    (ba:get-parameter-info
+     (ba:get-parameter-results *res-nlopt* :start 2000 :no-bins 100 :start 10000
+                               :confidence-level 0.9d0) 'fp:om-c)))
+
+  #+END_SRC
+- let's get back to that, but first I need to have some accessor
+  function to for ease of use:
+- o.k., with that is seems obvious that is quite a difference 
+- why then is the plot the same *--->* what am I doing when plotting ? 
+- just for giggles, start changing the binning *->* that made it even worse
+- ok, maybe that is actually what it is ... the fits are slightly different
+- I should compare it to what LM gives as an answer to be sure it is actually ok
+  #+BEGIN_SRC lisp
+  (defparameter *test-file* (midas:read-mpet-midas-file "/data_analysis/midas-files/20160630/run277347.mid"))
+
+  (defparameter *data*
+    (tof-data:data *test-file* 1
+                   :min-tof 20d0
+                   :max-tof 50d0
+                   :min-no-ions 1
+                   :max-no-ions 5))
+
+  (let ((params (fp:get-init-params-from-midas-file
+                 ,*test-file* 4d0
+                 :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
+                 :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
+                 :tof-offset-min 0d0 :tof-offset-max 2d0
+                 :rho-m0 4d-4
+                 :rho-m0-min 2d-4
+                 :rho-m0-max 6d-4)))
+    (defparameter *res-nlopt*
+      (ba:find-optimum
+       (make-instance 'ba:nlopt :algorithm nlopt:+nlopt_ln_neldermead+)
+       (apply #'make-instance 'fp:bayes-konig params)
+       (ba:initialize-from-source 'fp:bayes-tof *data*))))
+
+
+
+  (let+ ((lm-res (fp:om-c
+                  (pa:fit-model
+                   (pa:fit-run *test-file*
+                               (make-instance 'pa:run-constraints :tof-range '(20d0 50d0)
+                                                                  :no-ion-range '(1 5)
+                                                                  :tof-bin-width 0.2d0) 
+                               'fit-penning::konig :fit-rho-m0 t :rho-m0 5d-4 :om-m 38327.430373795476d0))))
+         (p-results (ba:get-parameter-results *res-nlopt* :start 2000 :no-bins 30 :start 10000))
+         (nl-res (ba:median (ba:get-parameter-info p-results 'fp:om-c))))
+    (values (/ (- lm-res nl-res)  (ba:absolute-error (ba:get-parameter-info p-results 'fp:om-c)))))
+  #+END_SRC
+
+  #+RESULTS:
+  : -0\.07924184698329063d0
+
+- ok, I can live with that
 ** CANCELED introduce gsl fitting as algorithnm to solve for parameters (and model comparison)
 *** logbook
 - let's start with branching this
@@ -528,448 +932,14 @@ variable.
 #+END_SRC
 **** testing with resonance
 - doing this in package penning-analysis 'cause it is easier
-
-** DONE nlopt
-since Levenberg marquardt does not work for non-uniform priors, use
-nlopt to find maximum
-
-*** code to test
-setting up test code so we can test with a resonance, let's do this in
-the penning-analysis package, might be easier
-#+BEGIN_SRC lisp :results none
-(in-package #:penning-analysis)
-
-(defparameter *test-file* (midas:read-mpet-midas-file "/data_analysis/midas-files/20160630/run277347.mid"))
-
-(defparameter *d*
-
-  (tof-data:data *test-file* 1
-		 :min-tof 20d0 :max-tof 50d0 :min-no-ions 3 :max-no-ions 4))
-#+END_SRC
-
-
-Next: example on how to use it:
-#+BEGIN_SRC lisp :results none
-(in-package #:penning-analysis)
-
-(defparameter *data*
-  (tof-data:data *test-file* 1
-		 :min-tof 20d0
-		 :max-tof 50d0
-		 :min-no-ions 1
-		 :max-no-ions 5))
-
-(let ((params (fp:get-init-params-from-midas-file
-	       ,*test-file* 4d0
-	       ;:om-c-prior (make-instance 'ba:gaussian-prior :mu 3.222541d7 :sigma 10d0)
-	       :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
-	       :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
-	       :tof-offset-min 0.1d0 :tof-offset-max 1d0 :tof-offset 0.5d0
-	       :rho-m0 4d-4
-	       :rho-m0-min 2d-4
-	       :rho-m0-max 6d-4)))
-  (defparameter *res-nlopt*
-    (ba:find-optimum
-     (make-instance 'ba:nlopt :algorithm nlopt:+nlopt_ln_neldermead+)
-     (apply #'make-instance 'fp:bayes-konig params)
-     (ba:initialize-from-source 'fp:bayes-tof *data*))))
-
-(let ((params (fp:get-init-params-from-midas-file
-	       ,*test-file* 4d0
-	       ;:om-c-prior (make-instance 'ba:gaussian-prior :mu 3.222541d7 :sigma 10d0)
-	       :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
-	       :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
-	       :tof-offset-min 0.1d0 :tof-offset-max 1d0 :tof-offset 0.5d0
-	       :rho-m0 4d-4
-	       :rho-m0-min 2d-4
-	       :rho-m0-max 6d-4)))
-  (defparameter *res-nlopt-low-error*
-    (ba:find-optimum
-     (make-instance 'ba:nlopt :algorithm nlopt:+nlopt_ln_neldermead+)
-     (apply #'make-instance 'fp:bayes-konig params)
-     (ba:initialize-from-source 'fp:bayes-tof *data*))))
-
-
-(let ((params (fp:get-init-params-from-midas-file
-	       ,*test-file* 4d0
-	       ;:om-c-prior (make-instance 'ba:gaussian-prior :mu 3.222541d7 :sigma 10d0)
-	       :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
-	       :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
-	       :tof-offset-min 0d0 :tof-offset-max 2d0
-	       :rho-m0 4d-4
-	       :rho-m0-min 2d-4
-	       :rho-m0-max 6d-4)))
-  (defparameter *res-mcmc*
-    (ba:find-optimum
-;     (make-instance 'ba:nlopt :algorithm nlopt:+nlopt_ln_neldermead+)
-     (make-instance 'ba:metropolis-hastings :no-iterations 100000)
-     (apply #'make-instance 'fp:bayes-konig params)
-     (ba:initialize-from-source 'fp:bayes-tof *data*))))
-
-
-
-
-(labels ((cmd (fmt-str &rest args)
-	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-  (mgl-gnuplot:with-session ()
-    (cmd "reset")
-    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
-    (cmd "set title 'mcmc'")
-    (ba:plot-result-model (ba:get-parameter-results *res-nlopt*))
-    (cmd "unset output")))
-
-(let ((ba::*use-sigma-f-min/max* 4))
-  (labels ((cmd (fmt-str &rest args)
-	     (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-    (mgl-gnuplot:with-session ()
-      (cmd "reset")
-      (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
-      (ba:plot-parameter-distribution
-       (ba:get-parameter-results *res-nlopt* :start 2000 :no-bins 50) 'fp::tof-offset)
-      (cmd "unset output"))))
-
-
-(labels ((cmd (fmt-str &rest args)
-	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-  (mgl-gnuplot:with-session ()
-    (cmd "reset")
-    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
-    (mgl-gnuplot:plot*
-     (list
-      (mgl-gnuplot:data*
-       (map 'list #'identity (ba::laplacian-approximation-marginal-posterior *res* 'fp::rho-m0 100 :on-center nil))
-       "with steps"))) 
-    (cmd "unset output")))
-
-
-
-
-
-
-
-
-(test-gaussian)
-
-
-(progn
-  (defun test-gaussian ()
-    (labels ((cmd (fmt-str &rest args)
-	       (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-      (mgl-gnuplot:with-session ()
-	(cmd "reset")
-	(cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
-	(mgl-gnuplot:plot*
-	 (list
-	  (mgl-gnuplot:data*
-	   (let+ ((model (ba:copy-object (ba:model *res*)))
-		  ((&slots fp::om-c-min fp::om-c-max) model)
-		  (no-steps 200)
-		  (prior (aref (ba::log-of-all-priors-array model) 0)))
-	     (iter
-	       (with diff = (- fp::om-c-max fp::om-c-min))
-	       (for x from fp::om-c-min to fp::om-c-max by (/ diff no-steps))
-	       (setf (fp::om-c model) x)
-	       (collect (list (- x (+ fp::om-c-min (/ diff 2)))
-			      (funcall prior)))))
-	   "with lines"))) 
-	(cmd "unset output")))))
-#+END_SRC
-*** logbook
-- [2017-05-16 Tue 10:33] continuing logbook here
-- *problem:* the posterior distribution calculated for the laplacian
-  seems to be dependent on the range -- at least for the tof-offset and rho-m0
-- *also:* the determinant of the Fisher information matrix changes sign
-- actually, let's first make sure that it still works at all 
-- no, not really -- wish I had made a commit of the unfinished version
-  of it
-- so, what seems to be going on ? 
-- firstly, it finds the correct minimum
-- but the distribution for om-c is now flat (at zero)
-- no, first, try to see what happens, to the fit, when fixing a
-  parameter
-  #+BEGIN_SRC lisp
-  (in-package :penning-analysis)
-
-
-  (labels ((cmd (fmt-str &rest args)
-             (mgl-gnuplot:command (apply #'format nil fmt-str args)))
-           (get-params ()
-             (fp:get-init-params-from-midas-file *test-file* 10d0
-                                                 :om-c-sample-sigma 0.5d0
-                                                 :tof-offset-min -1d0
-                                                 :tof-offset 0d0
-                                                 :tof-offset-marginalize nil
-                                                 :tof-offset-max 1d0
-                                                 :tof-offset-sample-sigma 0.01d0
-                                                 :rho-m0-marginalize t
-                                                 :rho-m0-sample-sigma 1d-5)))
-    (let+ ((data)
-           (plots
-            (iter
-              (with k = (apply #'make-instance 'fp:bayes-konig (get-params)))
-              (for tof-offset from -5d0 to 5d0 by 1d0)
-              (setf (fp::tof-offset k) tof-offset)
-              (for opt = (ba:find-optimum (make-instance 'ba:nlopt) k
-                                          (ba:initialize-from-source 'fp:bayes-tof *d*)))
-              (for res = (ba:get-parameter-results opt))
-              (for (d input results) = (ba:plot-result-model res :enclose-in-plot nil))
-              (setf data d)
-              (collect results))))
-      (mgl-gnuplot:with-session ()
-        (cmd "reset")
-        (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-        (mgl-gnuplot:plot*
-         (append (list data) plots))
-        (cmd "unset output"))))
-
-  (labels ((get-params ()
-             (fp:get-init-params-from-midas-file *test-file* 10d0
-                                                 :om-c-sample-sigma 0.5d0
-                                                 :rho-m0 1d-4
-                                                 :tof-offset-marginalize nil)))
-                                                 (iter
-      (with k = (apply #'make-instance 'fp:bayes-konig (get-params)))
-      (for tof-offset from -1d0 to 1d0 by 0.1d0)
-      (setf (fp::tof-offset k) tof-offset)
-      (for opt = (ba:find-optimum (make-instance 'ba:nlopt) k
-                                  (ba:initialize-from-source 'fp:bayes-tof *d*)))
-      (collect (list (ba::nlopt-result opt)
-                     (ba::f-val opt)
-                     tof-offset))))
-  #+END_SRC
-
-  #+RESULTS:
-  : unset output
-- ok, that seems to make sense to me
-- let's look at copy object and see if we can amend it so it updates specific values
-- [2017-05-17 Wed 10:30] that made it work somehow
-- now, the determinant is still a problem ... let's fix that
-- [2017-05-18 Thu 16:10] seems, that the determinant isn't really a
-  problem (just taking the absolute, seems to work) and the inverse is
-  working now as well
-- commiting: [[orgit-rev:~/phd/src/penning-analysis.project/bayesian-analysis/::56ae9f2][~/phd/src/penning-analysis.project/bayesian-analysis/ (magit-rev 56ae9f2)]]
-- *next thing to do*, introduce proper gaussian prior
-- that probably involves more parameters, as min/max isn't enough
-- [2017-05-19 Fri 09:44] introduced gaussian prior
-- commit: [[orgit-rev:~/phd/src/penning-analysis.project/bayesian-analysis/::bb39265][~/phd/src/penning-analysis.project/bayesian-analysis/ (magit-rev bb39265)]]
-- now, let's plot the priors to see that the gaussian actually looks
-  like it is supposed to look like (and maybe the jeffreys as well ...)
-- okay then, there was a small mistake in the gaussians
-- commit: [[orgit-rev:~/phd/src/penning-analysis.project/bayesian-analysis/::581f657][~/phd/src/penning-analysis.project/bayesian-analysis/ (magit-rev 581f657)]]
-- need to rework the prior mechanism into something that is more
-  generic, maybe make a class of it
-- probably the way to go: method that specializes either on symbol
-  (:certain, :jeffreys, :uniform) or object, like gaussian
-- [2017-05-23 Tue 13:55] implementing parameter results for nlopt results
-- so, how do I determine min max for nlopt results ? For mcmc results
-  that was easy, since we could just take the min/max of the iteration values
-- let's start by using the prior range and then maybe think of something else
-- mmmh, laplacian-approximation-marginal-posterior doesn't work anymore for rho-m0 ?
-- ok, I'm probably not copying the model and then the parameter set
-  last for calculating the binned data stays
-- let's see where I actually set parameters
-- laplacian-approximation-marginal-posterior sets slots, but it makes copies, let's test
-  if that could be the problem:
-  #+BEGIN_SRC lisp :results none
-  (in-package #:penning-analysis)
-
-
-
-  (labels ((cmd (fmt-str &rest args)
-             (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-    (mgl-gnuplot:with-session ()
-      (cmd "reset")
-      (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
-      (ba::laplacian-approximation-marginal-posterior *res* 'fp::rho-m0 100 :on-center nil)
-      (ba::laplacian-approximation-marginal-posterior *res* 'fp::om-c 100 :on-center nil)
-      (mgl-gnuplot:plot*
-       (list
-        (mgl-gnuplot:data*
-         (map 'list #'identity (ba::laplacian-approximation-marginal-posterior *res*
-                                                            'fp::tof-offset 300
-                                                            :on-center nil))
-         "with steps"))) 
-      (cmd "unset output")))
-  #+END_SRC
-- the above works w/o problems, so that shouldn't be it
-- ok, it is probably the median setting that I do with :on-center t
-- ok, solved that problem, now, if I compare om-c found with mcmc to
-  the one found with nlopt, they differ by two Hz, wtf ??
-- could this be a binning thing ?
-- doesn't depend (that much) on number of bins
-- ok, now I'm confused, the plot says exactly the same thing
-- yeah, that was stupid, it's because the plots are offset differently
-  as they have a different range -- *or are they* 
-  #+BEGIN_SRC lisp :results none
-  (-
-   (ba:median
-    (ba:get-parameter-info
-     (ba:get-parameter-results *res-mcmc* :start 2000 :no-bins 100 :start 1000) 'fp:om-c))
-   (ba:median
-    (ba:get-parameter-info
-     (ba:get-parameter-results *res-nlopt* :start 2000 :no-bins 100 :start 10000) 'fp:om-c)))
-
-
-  (list
-   (ba:absolute-error
-    (ba:get-parameter-info
-     (ba:get-parameter-results *res-mcmc* :start 2000 :no-bins 100 :start 1000
-                               :confidence-level 0.9d0) 'fp:om-c))
-   (ba:absolute-error
-    (ba:get-parameter-info
-     (ba:get-parameter-results *res-nlopt* :start 2000 :no-bins 100 :start 10000
-                               :confidence-level 0.9d0) 'fp:om-c)))
-
-  #+END_SRC
-- let's get back to that, but first I need to have some accessor
-  function to for ease of use:
-- o.k., with that is seems obvious that is quite a difference 
-- why then is the plot the same *--->* what am I doing when plotting ? 
-- just for giggles, start changing the binning *->* that made it even worse
-- ok, maybe that is actually what it is ... the fits are slightly different
-- I should compare it to what LM gives as an answer to be sure it is actually ok
-  #+BEGIN_SRC lisp
-  (defparameter *test-file* (midas:read-mpet-midas-file "/data_analysis/midas-files/20160630/run277347.mid"))
-
-  (defparameter *data*
-    (tof-data:data *test-file* 1
-                   :min-tof 20d0
-                   :max-tof 50d0
-                   :min-no-ions 1
-                   :max-no-ions 5))
-
-  (let ((params (fp:get-init-params-from-midas-file
-                 ,*test-file* 4d0
-                 :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
-                 :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
-                 :tof-offset-min 0d0 :tof-offset-max 2d0
-                 :rho-m0 4d-4
-                 :rho-m0-min 2d-4
-                 :rho-m0-max 6d-4)))
-    (defparameter *res-nlopt*
-      (ba:find-optimum
-       (make-instance 'ba:nlopt :algorithm nlopt:+nlopt_ln_neldermead+)
-       (apply #'make-instance 'fp:bayes-konig params)
-       (ba:initialize-from-source 'fp:bayes-tof *data*))))
-
-
-
-  (let+ ((lm-res (fp:om-c
-                  (pa:fit-model
-                   (pa:fit-run *test-file*
-                               (make-instance 'pa:run-constraints :tof-range '(20d0 50d0)
-                                                                  :no-ion-range '(1 5)
-                                                                  :tof-bin-width 0.2d0) 
-                               'fit-penning::konig :fit-rho-m0 t :rho-m0 5d-4 :om-m 38327.430373795476d0))))
-         (p-results (ba:get-parameter-results *res-nlopt* :start 2000 :no-bins 30 :start 10000))
-         (nl-res (ba:median (ba:get-parameter-info p-results 'fp:om-c))))
-    (values (/ (- lm-res nl-res)  (ba:absolute-error (ba:get-parameter-info p-results 'fp:om-c)))))
-  #+END_SRC
-
-  #+RESULTS:
-  : -0\.07924184698329063d0
-
-- ok, I can live with that
-** TODO bin laplacian approximation better
+** DONE bin laplacian approximation better
 maybe can use errors (x 6) from the fisher information matrix to
 calculate a more sensible region for the distributions than min -> max
 *** logbook
 - [2017-05-25 Thu 10:21] ok, that seems to work now
 - testeing to not use the absolute value when calculating the error
   from the covariance matrix ... let's see if that works out
-** TODO testing
-- [ ] model comparison
-- [ ] fits
-** TODO create likelihood function for different assumptions
-*** [ ] only x values
-let's see if I can do that already 
-#+BEGIN_SRC lisp
-(in-package #:fit-penning)
-
-
-
-
-#+END_SRC
-** TODO make use of provided priors
-** TODO introduce other types of error assumptions
-** TODO plotting methods stuff diff. than xys
-** STARTED make 2d work
-after loosing a lot of work by being stupid with git, let's do this again
-#+BEGIN_SRC lisp
-(in-package #:bayesian-analysis)
-
-
-
-
-
-(defparameter *data* (initialize-from-source '1d-gaussian t))
-
-(defparameter *test-result*
-  (optimize (make-instance 'metropolis-hastings :no-iterations 5000)
-			(make-instance 'test-mean) *data*))
-
-(labels ((cmd (fmt-str &rest args)
-	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-  (mgl-gnuplot:with-session ()
-    (cmd "reset")
-    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-    (ba:plot-iteration-values *test-result*
-			      :params-to-plot '(a-1 a-2) :start 0 :every 1)
-    (cmd "unset output")))
-
-
-(labels ((cmd (fmt-str &rest args)
-	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-  (mgl-gnuplot:with-session ()
-    (cmd "reset")
-    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-    (ba:plot-likelihood *test-result* :start 0 :every 10)
-    (cmd "unset output")))
-
-(labels ((cmd (fmt-str &rest args)
-	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-  (mgl-gnuplot:with-session ()
-    (cmd "reset")
-    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-    (ba:plot-parameter-distribution (ba:get-parameter-results *test-result* :start 1500 :no-bins 10) 'a-2)
-    (cmd "unset output")))
-
-(defparameter *param-results* (ba:get-parameter-results *test-result* :start 5000 :no-bins 10))
-
-(labels ((cmd (fmt-str &rest args)
-	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-  (mgl-gnuplot:with-session ()
-    (cmd "reset")
-    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-    (plot-data *data*)
-    (cmd "unset output")))
-
-
-#+END_SRC
-
-aha! seems that when using a jeffreys prior, things go wrong ... mmmh,
-interesting. Oh well, if you take the log of a multiplication it
-becomes a sum.
-
-[2017-03-10 Fri 15:55] after playing around with it for a while, it
-seems to be really messy, so heres what I should 
-- introduce the ability to plot the resonance
-- see if it actually fits when the iteration values imply that it does
-  (I might be misleading myself)
-- if it does, investigate why it fits the "bad" data a lot better than
-  the good data
-- try fitting some hard resonances 
-  + this will proably involve a two isotope fit, how about we try that
-  + first, let's use an intrap fit
-  + also, fixing rho-m0 makes a lot of sense
-    
-
-
-
-*** it is working without the amplitude parameter
-which leaves me to believe that either the probability distribution is
-wrong or I need to play with the parameters more ...
-** STARTED make konig work faster
+** CANCELED make konig work faster
 this needs the fit-penning package to provide the konig model
 *** prerequisites
 - tof data
@@ -1069,7 +1039,77 @@ this needs the fit-penning package to provide the konig model
 
 #+RESULTS:
 : *D*
-** STARTED documentation
+** CANCELED make 2d work
+after loosing a lot of work by being stupid with git, let's do this again
+#+BEGIN_SRC lisp
+(in-package #:bayesian-analysis)
+
+
+(defparameter *data* (initialize-from-source '1d-gaussian t))
+
+(defparameter *test-result*
+  (optimize (make-instance 'metropolis-hastings :no-iterations 5000)
+			(make-instance 'test-mean) *data*))
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+    (ba:plot-iteration-values *test-result*
+			      :params-to-plot '(a-1 a-2) :start 0 :every 1)
+    (cmd "unset output")))
+
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+    (ba:plot-likelihood *test-result* :start 0 :every 10)
+    (cmd "unset output")))
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+    (ba:plot-parameter-distribution (ba:get-parameter-results *test-result* :start 1500 :no-bins 10) 'a-2)
+    (cmd "unset output")))
+
+(defparameter *param-results* (ba:get-parameter-results *test-result* :start 5000 :no-bins 10))
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+    (plot-data *data*)
+    (cmd "unset output")))
+
+
+#+END_SRC
+
+aha! seems that when using a jeffreys prior, things go wrong ... mmmh,
+interesting. Oh well, if you take the log of a multiplication it
+becomes a sum.
+
+[2017-03-10 Fri 15:55] after playing around with it for a while, it
+seems to be really messy, so heres what I should 
+- introduce the ability to plot the resonance
+- see if it actually fits when the iteration values imply that it does
+  (I might be misleading myself)
+- if it does, investigate why it fits the "bad" data a lot better than
+  the good data
+- try fitting some hard resonances 
+  + this will proably involve a two isotope fit, how about we try that
+  + first, let's use an intrap fit
+  + also, fixing rho-m0 makes a lot of sense
+- [2017-05-25 Thu 12:09]     
+
+*** it is working without the amplitude parameter
+which leaves me to believe that either the probability distribution is
+wrong or I need to play with the parameters more ...
 ** CANCELED straight integration
 meaning marginalization should also just work. The issue could be that
 I can't do the integral because double-float won't be able to hold
