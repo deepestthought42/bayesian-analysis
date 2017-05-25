@@ -123,13 +123,13 @@
 	 (model-for-hessian (copy-object model))
 	 (fun-for-hessian (get-ln-of-p*l model-for-hessian data))
 	 (hessian (hessian fun-for-hessian model-for-hessian
-			   (get-optimal-delta model-for-hessian)))
+			   (get-optimal-delta model-for-hessian) -1d0))
 	 (covariance (lla:invert hessian))
 	 ((&slots model-parameters-to-marginalize) model)
 	 (i (position parameter model-parameters-to-marginalize)))
     (if (not i)
 	(error 'unknown-parameter :parameter-name parameter))
-    (sqrt (abs (aref covariance i i)))))
+    (sqrt (aref covariance i i))))
 
 (defun laplacian-approximation-marginal-posterior (nlopt-result parameter no-bins
 						   &key on-center
@@ -219,7 +219,7 @@
 
 (defmethod get-parameter-results ((result nlopt-result)
 				  &key (start 0) end (confidence-level 0.69)
-				       (no-bins 50))
+				       (no-bins 25))
   (let+ (((&slots nlopt-result input-model model data) result)
 	 ((&slots model-parameters-to-marginalize) input-model)
 	 (param-infos (iter

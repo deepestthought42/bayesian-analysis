@@ -125,7 +125,7 @@ approximated with \ref{eq:lap-approx}.
        (get-parameter-results
         (ba:find-optimum
          (make-instance 'ba:nlopt)
-         (make-instance 'linear)
+         (make-instance 'quadratic)
          (ba:initialize-from-source '1d-data t))
         :no-bins 100))
       (cmd "unset output")))
@@ -167,107 +167,6 @@ approximated with \ref{eq:lap-approx}.
 *** TODOs 
 **** TODO come up with something to compare this too 
 maybe from the book (Gregory)
-** STARTED make konig work faster
-this needs the fit-penning package to provide the konig model
-*** prerequisites
-- tof data
-  #+BEGIN_SRC lisp :results none
-  (in-package #:fit-penning)
-  (defparameter *d*
-    (tof-data:data (midas:read-mpet-midas-file "/data_analysis/midas-files/20160708/run280463.mid") 1
-                   :min-tof 20d0 :max-tof 50d0 :max-no-ions 2))
-#+END_SRC
-- parameters
-  #+BEGIN_SRC lisp :results none
-  (in-package #:fit-penning)
-  (defparameter *no-iterations* 20000)
-  #+END_SRC
-- and then some results to test stuff with
-  #+BEGIN_SRC lisp :results none
-  (in-package #:fit-penning)
-
-  (time
-   (defparameter *mcmc-konig-result/1*
-     (ba:optimize (make-instance 'ba:metropolis-hastings :no-iterations *no-iterations*)
-                              (make-instance 'bayes-konig
-                                             :om-c (* 2 pi 5556259.7d0)
-                                             :om-c-min (* 2 pi (- 5556259.7d0 30d0))
-                                             :om-c-max (* 2 pi (+ 5556259.7d0 30d0))
-                                             :om-c-sample-sigma 0.1d0
-                                             :om-m (* 2 pi 6112.3d0)
-                                             :om-c-bin-width 0.01d0
-                                             :e-0-sample-sigma 1d-1
-                                             :e-0-bin-width 0.1d0
-                                             :tof-offset-sample-sigma 0.01d0
-                                             :tof-offset-bin-width 0.01
-                                             :rho-m0-bin-width 1d-6
-                                             :rho-m0-sample-sigma 1d-5
-                                             :q 13d0)
-                              (ba:initialize-from-source 'bayes-tof *d*))))
-  #+END_SRC
-
-*** let's plot it to make sure it worked
-- iterations
-  #+BEGIN_SRC lisp :results none
-  (in-package #:fit-penning)
-
-  (labels ((cmd (fmt-str &rest args)
-             (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-    (mgl-gnuplot:with-session ()
-      (cmd "reset")
-      (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-      (ba:plot-iteration-values
-       ,*mcmc-konig-result/1*
-       :params-to-plot '(om-c)
-       :start 0 :every 10)
-      (cmd "unset output")))
-  #+END_SRC
-- distributions
-  #+BEGIN_SRC lisp :results none
-  (in-package #:fit-penning)
-
-  (labels ((cmd (fmt-str &rest args)
-               (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-      (mgl-gnuplot:with-session ()
-        (cmd "reset")
-        (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-        (ba:plot-parameter-distribution
-         (ba:get-parameter-results *mcmc-konig-result/1* :no-bins 25 :start 1000) 'om-c)
-        (cmd "unset output")))
-  #+END_SRC
-
-  #+RESULTS:
-- result model
-  #+BEGIN_SRC lisp :results none
-  (in-package #:fit-penning)
-
-  (labels ((cmd (fmt-str &rest args)
-             (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-    (mgl-gnuplot:with-session ()
-      (cmd "reset")
-      (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-      (ba:plot-result-model (ba:get-parameter-results
-  			   ,*mcmc-konig-result/1* 
-  			   :start 1500))
-      (cmd "unset output")))
-#+END_SRC
-*** let's get a profile base-line
-#+BEGIN_SRC lisp :package fit-penning
-(in-package #:fit-penning)
-
-
-
-
-
-
-
-
-
-#+END_SRC
-
-#+RESULTS:
-: *D*
-
 ** TODO put public api in one place
 file:./bayesian.lisp is probably the place to put it
 ** DONE introduce caching
@@ -277,83 +176,6 @@ what determines if we use use a cached value ?
 
 the dependent parameters need to be able to take more than one
 parameter for the 2d analysis case
-** STARTED make 2d work
-after loosing a lot of work by being stupid with git, let's do this again
-#+BEGIN_SRC lisp
-(in-package #:bayesian-analysis)
-
-
-
-
-
-(defparameter *data* (initialize-from-source '1d-gaussian t))
-
-(defparameter *test-result*
-  (optimize (make-instance 'metropolis-hastings :no-iterations 5000)
-			(make-instance 'test-mean) *data*))
-
-(labels ((cmd (fmt-str &rest args)
-	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-  (mgl-gnuplot:with-session ()
-    (cmd "reset")
-    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-    (ba:plot-iteration-values *test-result*
-			      :params-to-plot '(a-1 a-2) :start 0 :every 1)
-    (cmd "unset output")))
-
-
-(labels ((cmd (fmt-str &rest args)
-	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-  (mgl-gnuplot:with-session ()
-    (cmd "reset")
-    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-    (ba:plot-likelihood *test-result* :start 0 :every 10)
-    (cmd "unset output")))
-
-(labels ((cmd (fmt-str &rest args)
-	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-  (mgl-gnuplot:with-session ()
-    (cmd "reset")
-    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-    (ba:plot-parameter-distribution (ba:get-parameter-results *test-result* :start 1500 :no-bins 10) 'a-2)
-    (cmd "unset output")))
-
-(defparameter *param-results* (ba:get-parameter-results *test-result* :start 5000 :no-bins 10))
-
-(labels ((cmd (fmt-str &rest args)
-	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-  (mgl-gnuplot:with-session ()
-    (cmd "reset")
-    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
-    (plot-data *data*)
-    (cmd "unset output")))
-
-
-#+END_SRC
-
-aha! seems that when using a jeffreys prior, things go wrong ... mmmh,
-interesting. Oh well, if you take the log of a multiplication it
-becomes a sum.
-
-[2017-03-10 Fri 15:55] after playing around with it for a while, it
-seems to be really messy, so heres what I should 
-- introduce the ability to plot the resonance
-- see if it actually fits when the iteration values imply that it does
-  (I might be misleading myself)
-- if it does, investigate why it fits the "bad" data a lot better than
-  the good data
-- try fitting some hard resonances 
-  + this will proably involve a two isotope fit, how about we try that
-  + first, let's use an intrap fit
-  + also, fixing rho-m0 makes a lot of sense
-    
-
-
-
-*** it is working without the amplitude parameter
-which leaves me to believe that either the probability distribution is
-wrong or I need to play with the parameters more ...
-
 ** TODO org output function
 ** CANCELED introduce gsl fitting as algorithnm to solve for parameters (and model comparison)
 *** logbook
@@ -749,10 +571,23 @@ Next: example on how to use it:
   (defparameter *res-nlopt*
     (ba:find-optimum
      (make-instance 'ba:nlopt :algorithm nlopt:+nlopt_ln_neldermead+)
-;     (make-instance 'ba:metropolis-hastings :no-iterations 100000)
      (apply #'make-instance 'fp:bayes-konig params)
      (ba:initialize-from-source 'fp:bayes-tof *data*))))
 
+(let ((params (fp:get-init-params-from-midas-file
+	       ,*test-file* 4d0
+	       ;:om-c-prior (make-instance 'ba:gaussian-prior :mu 3.222541d7 :sigma 10d0)
+	       :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
+	       :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
+	       :tof-offset-min 0.1d0 :tof-offset-max 1d0 :tof-offset 0.5d0
+	       :rho-m0 4d-4
+	       :rho-m0-min 2d-4
+	       :rho-m0-max 6d-4)))
+  (defparameter *res-nlopt-low-error*
+    (ba:find-optimum
+     (make-instance 'ba:nlopt :algorithm nlopt:+nlopt_ln_neldermead+)
+     (apply #'make-instance 'fp:bayes-konig params)
+     (ba:initialize-from-source 'fp:bayes-tof *data*))))
 
 
 (let ((params (fp:get-init-params-from-midas-file
@@ -771,9 +606,6 @@ Next: example on how to use it:
      (apply #'make-instance 'fp:bayes-konig params)
      (ba:initialize-from-source 'fp:bayes-tof *data*))))
 
- ; => 3.2225415363402523d7
-
-
 
 
 
@@ -783,9 +615,7 @@ Next: example on how to use it:
     (cmd "reset")
     (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
     (cmd "set title 'mcmc'")
-    (ba:plot-result-model (ba:get-parameter-results *res-mcmc* :no-bins 100 :start 1000))
-;    (cmd "set title 'nlopt'")
-;    (ba:plot-result-model (ba:get-parameter-results *res-nlopt* :no-bins 100 :start 1000))
+    (ba:plot-result-model (ba:get-parameter-results *res-nlopt*))
     (cmd "unset output")))
 
 (let ((ba::*use-sigma-f-min/max* 4))
@@ -795,7 +625,7 @@ Next: example on how to use it:
       (cmd "reset")
       (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
       (ba:plot-parameter-distribution
-       (ba:get-parameter-results *res-nlopt* :start 2000 :no-bins 40) 'fp::om-c)
+       (ba:get-parameter-results *res-nlopt* :start 2000 :no-bins 50) 'fp::tof-offset)
       (cmd "unset output"))))
 
 
@@ -1043,6 +873,10 @@ Next: example on how to use it:
 ** TODO bin laplacian approximation better
 maybe can use errors (x 6) from the fisher information matrix to
 calculate a more sensible region for the distributions than min -> max
+*** logbook
+- [2017-05-25 Thu 10:21] ok, that seems to work now
+- testeing to not use the absolute value when calculating the error
+  from the covariance matrix ... let's see if that works out
 ** TODO testing
 - [ ] model comparison
 - [ ] fits
@@ -1059,6 +893,182 @@ let's see if I can do that already
 ** TODO make use of provided priors
 ** TODO introduce other types of error assumptions
 ** TODO plotting methods stuff diff. than xys
+** STARTED make 2d work
+after loosing a lot of work by being stupid with git, let's do this again
+#+BEGIN_SRC lisp
+(in-package #:bayesian-analysis)
+
+
+
+
+
+(defparameter *data* (initialize-from-source '1d-gaussian t))
+
+(defparameter *test-result*
+  (optimize (make-instance 'metropolis-hastings :no-iterations 5000)
+			(make-instance 'test-mean) *data*))
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+    (ba:plot-iteration-values *test-result*
+			      :params-to-plot '(a-1 a-2) :start 0 :every 1)
+    (cmd "unset output")))
+
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+    (ba:plot-likelihood *test-result* :start 0 :every 10)
+    (cmd "unset output")))
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+    (ba:plot-parameter-distribution (ba:get-parameter-results *test-result* :start 1500 :no-bins 10) 'a-2)
+    (cmd "unset output")))
+
+(defparameter *param-results* (ba:get-parameter-results *test-result* :start 5000 :no-bins 10))
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+    (plot-data *data*)
+    (cmd "unset output")))
+
+
+#+END_SRC
+
+aha! seems that when using a jeffreys prior, things go wrong ... mmmh,
+interesting. Oh well, if you take the log of a multiplication it
+becomes a sum.
+
+[2017-03-10 Fri 15:55] after playing around with it for a while, it
+seems to be really messy, so heres what I should 
+- introduce the ability to plot the resonance
+- see if it actually fits when the iteration values imply that it does
+  (I might be misleading myself)
+- if it does, investigate why it fits the "bad" data a lot better than
+  the good data
+- try fitting some hard resonances 
+  + this will proably involve a two isotope fit, how about we try that
+  + first, let's use an intrap fit
+  + also, fixing rho-m0 makes a lot of sense
+    
+
+
+
+*** it is working without the amplitude parameter
+which leaves me to believe that either the probability distribution is
+wrong or I need to play with the parameters more ...
+** STARTED make konig work faster
+this needs the fit-penning package to provide the konig model
+*** prerequisites
+- tof data
+  #+BEGIN_SRC lisp :results none
+  (in-package #:fit-penning)
+  (defparameter *d*
+    (tof-data:data (midas:read-mpet-midas-file "/data_analysis/midas-files/20160708/run280463.mid") 1
+                   :min-tof 20d0 :max-tof 50d0 :max-no-ions 2))
+#+END_SRC
+- parameters
+  #+BEGIN_SRC lisp :results none
+  (in-package #:fit-penning)
+  (defparameter *no-iterations* 20000)
+  #+END_SRC
+- and then some results to test stuff with
+  #+BEGIN_SRC lisp :results none
+  (in-package #:fit-penning)
+
+  (time
+   (defparameter *mcmc-konig-result/1*
+     (ba:optimize (make-instance 'ba:metropolis-hastings :no-iterations *no-iterations*)
+                              (make-instance 'bayes-konig
+                                             :om-c (* 2 pi 5556259.7d0)
+                                             :om-c-min (* 2 pi (- 5556259.7d0 30d0))
+                                             :om-c-max (* 2 pi (+ 5556259.7d0 30d0))
+                                             :om-c-sample-sigma 0.1d0
+                                             :om-m (* 2 pi 6112.3d0)
+                                             :om-c-bin-width 0.01d0
+                                             :e-0-sample-sigma 1d-1
+                                             :e-0-bin-width 0.1d0
+                                             :tof-offset-sample-sigma 0.01d0
+                                             :tof-offset-bin-width 0.01
+                                             :rho-m0-bin-width 1d-6
+                                             :rho-m0-sample-sigma 1d-5
+                                             :q 13d0)
+                              (ba:initialize-from-source 'bayes-tof *d*))))
+  #+END_SRC
+
+*** let's plot it to make sure it worked
+- iterations
+  #+BEGIN_SRC lisp :results none
+  (in-package #:fit-penning)
+
+  (labels ((cmd (fmt-str &rest args)
+             (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+    (mgl-gnuplot:with-session ()
+      (cmd "reset")
+      (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+      (ba:plot-iteration-values
+       ,*mcmc-konig-result/1*
+       :params-to-plot '(om-c)
+       :start 0 :every 10)
+      (cmd "unset output")))
+  #+END_SRC
+- distributions
+  #+BEGIN_SRC lisp :results none
+  (in-package #:fit-penning)
+
+  (labels ((cmd (fmt-str &rest args)
+               (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+      (mgl-gnuplot:with-session ()
+        (cmd "reset")
+        (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+        (ba:plot-parameter-distribution
+         (ba:get-parameter-results *mcmc-konig-result/1* :no-bins 25 :start 1000) 'om-c)
+        (cmd "unset output")))
+  #+END_SRC
+
+  #+RESULTS:
+- result model
+  #+BEGIN_SRC lisp :results none
+  (in-package #:fit-penning)
+
+  (labels ((cmd (fmt-str &rest args)
+             (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+    (mgl-gnuplot:with-session ()
+      (cmd "reset")
+      (cmd "set terminal x11 enhanced font 'Georgia,8' dashed")
+      (ba:plot-result-model (ba:get-parameter-results
+  			   ,*mcmc-konig-result/1* 
+  			   :start 1500))
+      (cmd "unset output")))
+#+END_SRC
+*** let's get a profile base-line
+#+BEGIN_SRC lisp :package fit-penning
+(in-package #:fit-penning)
+
+
+
+
+
+
+
+
+
+#+END_SRC
+
+#+RESULTS:
+: *D*
 ** STARTED documentation
 ** CANCELED straight integration
 meaning marginalization should also just work. The issue could be that
