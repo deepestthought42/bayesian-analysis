@@ -26,7 +26,6 @@
    #:plot-result-model
    #:plot-iteration-values
    #:plot-data
-   #:calculate-odds-ratio
    #:incongruent-data
    #:wrong-data-type
    #:wrong-number-of-arguments
@@ -65,6 +64,7 @@
    #:relative-error
    #:absolute-error
    #:max-counts
-   #:binned-data)
+   #:binned-data
+   #:calculate-odds-ratio-2/1)
   (:nicknames ba))
 

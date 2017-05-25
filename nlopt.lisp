@@ -115,7 +115,7 @@
     (- f (log d))))
 
 
-(defun laplacian-approximation (nlopt-result parameter no-bins &key on-center)
+(defun laplacian-approximation-marginal-posterior (nlopt-result parameter no-bins &key on-center)
   (let+ ((marginalize-keyword (alexandria:make-keyword (w/suffix-slot-category :marginalize parameter)))
 	 ((&slots model data algorithm) nlopt-result)
 	 (model-to-optimize (copy-object model marginalize-keyword nil))
@@ -145,13 +145,34 @@
 
 
 
+(defun %get-log-likelihood (model data)
+  "Returns log[ p(q'|M,I)L(q')(2π^(M/2))(det I)^(-1/2) ]"
+  (let+ ((fun-for-hessian (get-ln-of-p*l model data))
+	 (hessian (hessian fun-for-hessian model
+			   (get-optimal-delta model) -1d0))
+	 (determinant (lla:det hessian))
+	 (M (array-dimension hessian 0)) ;; rank of fisher information
+	 (ln-of-p*L (funcall (get-ln-of-p*l model data)))
+	 (det (abs (sqrt determinant))))
+    (+ ln-of-p*L
+       (log (expt (* 2 pi) (/ M 2d0)))
+       (- (log det))))))      
+
+
+(defun laplacian-approximation-likelihood (nlopt-result)
+  "Returns log[p(D|M,I)] for the optimal model found with nlopt"
+  (let+ (((&slots model data) nlopt-result))
+    (%get-log-likelihood model data)))
+
+
+
 
 (defmethod bin-parameter-values ((result nlopt-result) parameter
 				 &key (no-bins 100) (start 0) end (confidence-level 0.69))
   (declare (ignore start end))
   
   (let+ (((&values binned min max)
-	  (laplacian-approximation result parameter no-bins)))
+	  (laplacian-approximation-marginal-posterior result parameter no-bins)))
     ;; processing
     (iter
       (with median = (/ (- max min) 2))

@@ -1,5 +1,5 @@
 * docker stuff
-** start sly
+** start container
 #+BEGIN_SRC emacs-lisp :results none
 (docker/start-sbcl-with-sly "bayesian-analysis" "deepestthought42/sbcl-1.3.15-bayesian-analysis:20170522"
                             '(("/home/renee/phd/src/penning-analysis.project/" "/src/")
@@ -22,6 +22,7 @@
 #+BEGIN_SRC lisp :results none
 (ql:quickload :fare-quasiquote)
 (ql:quickload :bayesian-analysis)
+(ql:quickload :penning-analysis)
 #+END_SRC
 
 
@@ -40,7 +41,114 @@ min, max, prior, etc should be immutable
 the current way of doing it seems overly complicated, let's not use a
 macro and create functions instead
 
-** WAITING get model comparison working
+** STARTED get model comparison working
+[2017-05-24 Wed 14:21] as the last big thing to implement, start with model comparison
+*** Laplacian approximation
+Based on the Laplacian approximation:
+\begin{equation}
+\label{eq:lap-approx}
+p \left( D|M,I \right)
+  \approx p ( \hat{\theta} | M,I) \mathcal{L} ( \hat{\theta} ) \left( 2\pi \right)^{M/2}(\det \mathbf{I})^{-1/2}, 
+\end{equation}
+where $M$ is the number of eigenvectors of $\mathbf{I}$ -- which
+should be the equal to the rank of $\mathbf{I}$. The
+definition of the odds ratio is:
+\begin{equation}
+\label{eq:odds-ratio}
+O_{21} = \frac{p \left( M_2 | D,I \right)}{p \left( M_1 | D,I \right)}
+       = \frac{p \left( M_2 | I \right)}{p \left( M_1 | I \right)}
+         \times \frac{p \left( D | M_2, I \right)}{p \left( D| M_1, I \right)}
+\end{equation}
+
+so, what do I need here, $p(D|M,I)$ is the likelihood that can be
+approximated with \ref{eq:lap-approx}. 
+*** assumptions:
+- for the Laplacian approximation to be close, the posteriors need to
+  be uni-modal
+- $M$ in equation \ref{eq:lap-approx} is equal to the rank of
+  $\mathbf{I}$
+  
+*** logbook
+- ohh, I seem to have some code already [[file:odds.lisp::(defmethod%20calculate-odds-ratio-1/2%20((model-1%20model)%20(model-2%20model)%20(data%20data)%20&key)][here]]
+- but it doesn't seem to be using the laplacian approximation
+- in fact, it seems as if it just evaluate the models, not sure if
+  that is true, there seems to be an integral involved if my memory
+  serves me correctly
+- let's check if that is true after some coffee ...
+- yeah, that needs to be marginalized, which is why
+  \ref{eq:lap-approx} needs to be used
+- so, the current implementation is not correct *-->* let's remove it
+- ok, since we use the laplacian approximation, we need to specialize
+  the method on something that can actually be used to calculate the
+  laplacian approximation
+- renamed laplacian-approximation to
+  laplacian-approximation-marginal-posterior since it is a more
+  accurate description
+- at some point, I might have to introduce generics for the
+  laplacian-approximation stuff
+- ok, that seemed a bit too straight forward, so let's test this
+  #+BEGIN_SRC lisp 
+  (in-package #:bayesian-analysis)
+
+  (eval-when (:compile-toplevel :load-toplevel)
+    (define-data-class 1d-data (x "x") y err
+        (object (source t))
+      (setf x (make-array 5 :initial-contents '(-1d0 0d0 1d0 2d0 3d0)
+                            :element-type 'double-float)
+            y (make-array 5 :initial-contents '(2.8d0 3.1d0 3.05d0 3.5d0 3.0d0)
+                            :element-type 'double-float)
+            err (make-array 5 :initial-contents '(0.1d0 0.1d0 0.2d0 0.1d0 0.1d0)
+                              :element-type 'double-float))))
+
+
+
+  (define-bayesian-model (quadratic 1d-data)
+      ((a :default 0.5 :min -1 :max 1 :prior :uniform  :marginalize t)
+       (b :prior :uniform :default -0 :min -0.1 :max 0.1 :marginalize t)
+       (c :prior :uniform :default 3 :min 3.0 :max 3.2 :marginalize t))
+      (:d_i=f_i+gaussian_error_i_unequal_sigma)
+      ((x) (+ (* a x) (* b x x) c)))
+
+  (define-bayesian-model (linear 1d-data)
+      ((a :default 1 :min -1 :max 1 :prior :uniform :marginalize t)
+       (b :prior :uniform :default 2 :min 2 :max 4 :marginalize t))
+      (:d_i=f_i+gaussian_error_i_unequal_sigma)
+      ((x)
+        (+ (* a x) b)))
+
+  (labels ((cmd (fmt-str &rest args)
+             (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+    (mgl-gnuplot:with-session ()
+      (cmd "reset")
+      (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+      (plot-result-model
+       (get-parameter-results
+        (ba:find-optimum
+         (make-instance 'ba:nlopt)
+         (make-instance 'quadratic)
+         (ba:initialize-from-source '1d-data t))
+        :no-bins 100))
+      (cmd "unset output")))
+
+
+
+
+  (let ((data (ba:initialize-from-source '1d-data t)))
+    (ba:calculate-odds-ratio-2/1
+     (ba:find-optimum
+      (make-instance 'ba:nlopt)
+      (make-instance 'linear) data)
+     (ba:find-optimum
+      (make-instance 'ba:nlopt)
+      (make-instance 'quadratic)
+      data)))
+  #+END_SRC
+- this seems to make sense; need to come up with a test for this
+-
+
+*** TODOs 
+**** TODO come up with something to compare this too 
+maybe from the book (Gregory)
 ** STARTED make konig work faster
 this needs the fit-penning package to provide the konig model
 *** prerequisites
@@ -581,7 +689,7 @@ variable.
 **** testing with resonance
 - doing this in package penning-analysis 'cause it is easier
 
-** TODO nlopt
+** DONE nlopt
 since Levenberg marquardt does not work for non-uniform priors, use
 nlopt to find maximum
 
@@ -679,7 +787,7 @@ Next: example on how to use it:
     (mgl-gnuplot:plot*
      (list
       (mgl-gnuplot:data*
-       (map 'list #'identity (ba::laplacian-approximation *res* 'fp::rho-m0 100 :on-center nil))
+       (map 'list #'identity (ba::laplacian-approximation-marginal-posterior *res* 'fp::rho-m0 100 :on-center nil))
        "with steps"))) 
     (cmd "unset output")))
 
@@ -806,11 +914,11 @@ Next: example on how to use it:
 - so, how do I determine min max for nlopt results ? For mcmc results
   that was easy, since we could just take the min/max of the iteration values
 - let's start by using the prior range and then maybe think of something else
-- mmmh, laplacian-approximation doesn't work anymore for rho-m0 ?
+- mmmh, laplacian-approximation-marginal-posterior doesn't work anymore for rho-m0 ?
 - ok, I'm probably not copying the model and then the parameter set
   last for calculating the binned data stays
 - let's see where I actually set parameters
-- laplacian-approximation sets slots, but it makes copies, let's test
+- laplacian-approximation-marginal-posterior sets slots, but it makes copies, let's test
   if that could be the problem:
   #+BEGIN_SRC lisp :results none
   (in-package #:penning-analysis)
@@ -822,12 +930,12 @@ Next: example on how to use it:
     (mgl-gnuplot:with-session ()
       (cmd "reset")
       (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
-      (ba::laplacian-approximation *res* 'fp::rho-m0 100 :on-center nil)
-      (ba::laplacian-approximation *res* 'fp::om-c 100 :on-center nil)
+      (ba::laplacian-approximation-marginal-posterior *res* 'fp::rho-m0 100 :on-center nil)
+      (ba::laplacian-approximation-marginal-posterior *res* 'fp::om-c 100 :on-center nil)
       (mgl-gnuplot:plot*
        (list
         (mgl-gnuplot:data*
-         (map 'list #'identity (ba::laplacian-approximation *res*
+         (map 'list #'identity (ba::laplacian-approximation-marginal-posterior *res*
                                                             'fp::tof-offset 300
                                                             :on-center nil))
          "with steps"))) 
