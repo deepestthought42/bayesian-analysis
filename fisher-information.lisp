@@ -26,8 +26,10 @@
       (collect (list param
 		     (if epsilon-given-p
 			 epsilon
-			 (* (expt epsilon 0.25d0)
-			    (slot-value model param))))))))
+			 (min
+			  1d-3
+			  (* (expt epsilon 0.25d0)
+			     (slot-value model param)))))))))
 
 
 (defun hessian (func model params.delta &optional (sign 1d0))
@@ -105,7 +107,7 @@ h_{j,k}=-\frac{1}{4\delta_j\delta_k}
 	       (+ (funcall varying/log-of-likelihood)
 		  (funcall constant/log-of-likelihood)
 		  (funcall log-of-all-priors))))
-      (hessian #'fun model (get-optimal-delta model) :sign -1d0))))
+      (hessian #'fun model (get-optimal-delta model) -1d0))))
 
 
 #+nil

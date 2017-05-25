@@ -41,7 +41,7 @@ min, max, prior, etc should be immutable
 the current way of doing it seems overly complicated, let's not use a
 macro and create functions instead
 
-** STARTED get model comparison working
+** NEEDS-TESTING get model comparison working
 [2017-05-24 Wed 14:21] as the last big thing to implement, start with model comparison
 *** Laplacian approximation
 Based on the Laplacian approximation:
@@ -95,7 +95,7 @@ approximated with \ref{eq:lap-approx}.
         (object (source t))
       (setf x (make-array 5 :initial-contents '(-1d0 0d0 1d0 2d0 3d0)
                             :element-type 'double-float)
-            y (make-array 5 :initial-contents '(2.8d0 3.1d0 3.05d0 3.5d0 3.0d0)
+            y (make-array 5 :initial-contents '(2.8d0 3.1d0 3.05d0 3.2d0 3.4d0)
                             :element-type 'double-float)
             err (make-array 5 :initial-contents '(0.1d0 0.1d0 0.2d0 0.1d0 0.1d0)
                               :element-type 'double-float))))
@@ -104,8 +104,8 @@ approximated with \ref{eq:lap-approx}.
 
   (define-bayesian-model (quadratic 1d-data)
       ((a :default 0.5 :min -1 :max 1 :prior :uniform  :marginalize t)
-       (b :prior :uniform :default -0 :min -0.1 :max 0.1 :marginalize t)
-       (c :prior :uniform :default 3 :min 3.0 :max 3.2 :marginalize t))
+       (b :prior :uniform :default -0 :min -1 :max 1 :marginalize t)
+       (c :prior :uniform :default 3 :min 2 :max 4 :marginalize t))
       (:d_i=f_i+gaussian_error_i_unequal_sigma)
       ((x) (+ (* a x) (* b x x) c)))
 
@@ -125,11 +125,29 @@ approximated with \ref{eq:lap-approx}.
        (get-parameter-results
         (ba:find-optimum
          (make-instance 'ba:nlopt)
-         (make-instance 'quadratic)
+         (make-instance 'linear)
          (ba:initialize-from-source '1d-data t))
         :no-bins 100))
       (cmd "unset output")))
 
+
+  (labels ((cmd (fmt-str &rest args)
+             (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+    (mgl-gnuplot:with-session ()
+      (cmd "reset")
+      (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+      (mgl-gnuplot:plot*
+       (list
+        (mgl-gnuplot:data*
+         (ba:plot-parameter-distribution
+          (get-parameter-results
+        (ba:find-optimum
+         (make-instance 'ba:nlopt)
+         (make-instance 'quadratic)
+         (ba:initialize-from-source '1d-data t))
+        :no-bins 50) 'b)
+         "with lines"))) 
+      (cmd "unset output")))
 
 
 
@@ -144,7 +162,7 @@ approximated with \ref{eq:lap-approx}.
       data)))
   #+END_SRC
 - this seems to make sense; need to come up with a test for this
--
+- ok, this could be it, needs more testing, though
 
 *** TODOs 
 **** TODO come up with something to compare this too 
@@ -702,6 +720,7 @@ the penning-analysis package, might be easier
 (defparameter *test-file* (midas:read-mpet-midas-file "/data_analysis/midas-files/20160630/run277347.mid"))
 
 (defparameter *d*
+
   (tof-data:data *test-file* 1
 		 :min-tof 20d0 :max-tof 50d0 :min-no-ions 3 :max-no-ions 4))
 #+END_SRC
@@ -723,7 +742,7 @@ Next: example on how to use it:
 	       ;:om-c-prior (make-instance 'ba:gaussian-prior :mu 3.222541d7 :sigma 10d0)
 	       :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
 	       :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
-	       :tof-offset-min 0d0 :tof-offset-max 2d0
+	       :tof-offset-min 0.1d0 :tof-offset-max 1d0 :tof-offset 0.5d0
 	       :rho-m0 4d-4
 	       :rho-m0-min 2d-4
 	       :rho-m0-max 6d-4)))
@@ -769,14 +788,15 @@ Next: example on how to use it:
 ;    (ba:plot-result-model (ba:get-parameter-results *res-nlopt* :no-bins 100 :start 1000))
     (cmd "unset output")))
 
-(labels ((cmd (fmt-str &rest args)
-	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-  (mgl-gnuplot:with-session ()
-    (cmd "reset")
-    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
-    (ba:plot-parameter-distribution
-     (ba:get-parameter-results *res* :start 2000 :no-bins 50) 'fp::om-c)
-    (cmd "unset output")))
+(let ((ba::*use-sigma-f-min/max* 4))
+  (labels ((cmd (fmt-str &rest args)
+	     (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+    (mgl-gnuplot:with-session ()
+      (cmd "reset")
+      (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+      (ba:plot-parameter-distribution
+       (ba:get-parameter-results *res-nlopt* :start 2000 :no-bins 40) 'fp::om-c)
+      (cmd "unset output"))))
 
 
 (labels ((cmd (fmt-str &rest args)
@@ -1020,13 +1040,12 @@ Next: example on how to use it:
   : -0\.07924184698329063d0
 
 - ok, I can live with that
+** TODO bin laplacian approximation better
+maybe can use errors (x 6) from the fisher information matrix to
+calculate a more sensible region for the distributions than min -> max
 ** TODO testing
 - [ ] model comparison
 - [ ] fits
-** TODO installing nlopt
-#+BEGIN_SRC sh
-cd 
-#+END_SRC
 ** TODO create likelihood function for different assumptions
 *** [ ] only x values
 let's see if I can do that already 
@@ -1040,7 +1059,8 @@ let's see if I can do that already
 ** TODO make use of provided priors
 ** TODO introduce other types of error assumptions
 ** TODO plotting methods stuff diff. than xys
-** TODO straight integration
+** STARTED documentation
+** CANCELED straight integration
 meaning marginalization should also just work. The issue could be that
 I can't do the integral because double-float won't be able to hold
 numbers small enough
@@ -1103,8 +1123,7 @@ that was easy enough
 
 - need to keep the array of priors to actually have them for straight
   integration
-
-** STARTED documentation
+** DONE installing nlopt
 * possible optimizations
 ** TODO seperate priors in constant/varying when integrating
 \begin{equation}

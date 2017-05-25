@@ -110,38 +110,63 @@
 	 (hessian (hessian fun-for-hessian model-for-hessian
 			   (get-optimal-delta model-for-hessian) -1d0))
 	 (determinant (lla:det hessian))
+	 ;; this might be superflous, could use the above f ?
 	 (f (funcall (get-ln-of-p*l model-to-optimize data)))
 	 (d (abs (sqrt determinant))))
     (- f (log d))))
 
 
-(defun laplacian-approximation-marginal-posterior (nlopt-result parameter no-bins &key on-center)
-  (let+ ((marginalize-keyword (alexandria:make-keyword (w/suffix-slot-category :marginalize parameter)))
-	 ((&slots model data algorithm) nlopt-result)
-	 (model-to-optimize (copy-object model marginalize-keyword nil))
-	 (min (coerce (slot-value model (w/suffix-slot-category :min parameter)) 'double-float))
-	 (max (coerce (slot-value model (w/suffix-slot-category :max parameter)) 'double-float)))
-    (iter
-      (with diff = (- max min))
-      (for x from min to max by (/ diff no-bins))
-      (for ln-of-p*L = (%laplacian-max-phi x parameter algorithm
-					   model-to-optimize data))
-      (collect x into xs)
-      (collect ln-of-p*L into f-of-xs)
-      (maximize ln-of-p*L into max-ln-of-p*L)
-      (minimize ln-of-p*L into min-ln-of-p*L)
-      (finally
-       (return
-	 (iter
-	   (with integral = (sumlogexp f-of-xs))
-	   (with result-array = (make-array (length f-of-xs)))
-	   (for i initially 0 then (1+ i))
-	   (for x in xs)
-	   (for f in f-of-xs)
-	   (setf (aref result-array i)
-		 (list (if on-center (- x (/ (+ max min) 2d0)) x)
-		       (exp (- f integral))))
-	   (finally (return (values result-array min max)))))))))
+(defparameter *use-sigma-f-min/max* 4)
+
+(defun get-variance-for-param (nlopt-result parameter)
+  (let+ (((&slots model data) nlopt-result)
+	 (model-for-hessian (copy-object model))
+	 (fun-for-hessian (get-ln-of-p*l model-for-hessian data))
+	 (hessian (hessian fun-for-hessian model-for-hessian
+			   (get-optimal-delta model-for-hessian)))
+	 (covariance (lla:invert hessian))
+	 ((&slots model-parameters-to-marginalize) model)
+	 (i (position parameter model-parameters-to-marginalize)))
+    (if (not i)
+	(error 'unknown-parameter :parameter-name parameter))
+    (sqrt (abs (aref covariance i i)))))
+
+(defun laplacian-approximation-marginal-posterior (nlopt-result parameter no-bins
+						   &key on-center
+							(use-sigma-range *use-sigma-f-min/max*))
+  (labels ((get-min/max (model)
+	     (if use-sigma-range
+		 (let+ ((err (get-variance-for-param nlopt-result parameter))
+			(val (slot-value model parameter))
+			(diff (* use-sigma-range err)))
+		   (values (- val diff) (+ val diff)))
+		 (values (coerce (slot-value model (w/suffix-slot-category :min parameter)) 'double-float)
+			 (coerce (slot-value model (w/suffix-slot-category :max parameter)) 'double-float)))))
+    (let+ ((marginalize-keyword (alexandria:make-keyword (w/suffix-slot-category :marginalize parameter)))
+	   ((&slots model data algorithm) nlopt-result)
+	   (model-to-optimize (copy-object model marginalize-keyword nil))
+	   ((&values min max) (get-min/max model)))
+      (iter
+	(with diff = (- max min))
+	(for x from min to max by (/ diff no-bins))
+	(for ln-of-p*L = (%laplacian-max-phi x parameter algorithm
+					     model-to-optimize data))
+	(collect x into xs)
+	(collect ln-of-p*L into f-of-xs)
+	(maximize ln-of-p*L into max-ln-of-p*L)
+	(minimize ln-of-p*L into min-ln-of-p*L)
+	(finally
+	 (return
+	   (iter
+	     (with integral = (sumlogexp f-of-xs))
+	     (with result-array = (make-array (length f-of-xs)))
+	     (for i initially 0 then (1+ i))
+	     (for x in xs)
+	     (for f in f-of-xs)
+	     (setf (aref result-array i)
+		   (list (if on-center (- x (/ (+ max min) 2d0)) x)
+			 (exp (- f integral))))
+	     (finally (return (values result-array min max))))))))))
 
 
 
@@ -156,7 +181,7 @@
 	 (det (abs (sqrt determinant))))
     (+ ln-of-p*L
        (log (expt (* 2 pi) (/ M 2d0)))
-       (- (log det))))))      
+       (- (log det))))) 
 
 
 (defun laplacian-approximation-likelihood (nlopt-result)
