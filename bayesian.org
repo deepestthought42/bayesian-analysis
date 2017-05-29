@@ -42,28 +42,31 @@ the current way of doing it seems overly complicated, let's not use a
 macro and create functions instead
 ** TODO 2d model with nlopt
 let's see how 2d fitting works with nlopt
-*** data
+*** code
+**** first tests
 #+BEGIN_SRC lisp 
 (in-package #:penning-analysis)
 
 (defparameter *test-file* (midas:read-mpet-midas-file "/data_analysis/midas-files/20160630/run277347.mid"))
+
 
 (defparameter *data*
   (tof-data:data *test-file* 1
 		 :min-tof 20d0
 		 :max-tof 50d0
 		 :min-no-ions 1
-		 :max-no-ions 2))
+		 :max-no-ions 1))
 
 (let ((params (fp:get-init-params-from-midas-file
 	       ,*test-file* 4d0
-
+	       
 	       :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
 	       :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
 	       :tof-offset-min 0.1d0 :tof-offset-max 1d0 :tof-offset 0.5d0
-	       :rho-m0 2d-4
-	       :rho-m0-min 1d-4
-	       :rho-m0-max 9d-4)))
+	       :contaminant-offset-max 40d0
+	       :rho-m0 3d-4
+	       :rho-m0-min 2d-4
+	       :rho-m0-max 5d-4)))
   (defparameter *res-nlopt-2d*
     (ba:find-optimum
      (make-instance 'ba:nlopt :max-time 5d0)
@@ -73,7 +76,7 @@ let's see how 2d fitting works with nlopt
 
 
 
-(ba:get-parameter-results  *res-nlopt-2d* :no-bins 10)
+(defparameter *param-results* (ba:get-parameter-results  *res-nlopt-2d* :no-bins 20))
 
 (labels ((cmd (fmt-str &rest args)
 	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
@@ -82,12 +85,93 @@ let's see how 2d fitting works with nlopt
     (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
     (let+ (((&slots ba::input-model ba:model ba:data) *res-nlopt-2d*))
       (mgl-gnuplot:plot*
-       (ba:plot-result-models ba:input-model ba:model ba:data))) 
+       (ba:plot-result *param-results*))) 
     (cmd "unset output")))
 
 
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+    (let+ (((&slots ba::input-model ba:model ba:data) *res-nlopt-2d*))
+      (mgl-gnuplot:plot*
+       (ba:plot-parameter-distribution *param-results* 'fp::p-interest))) 
+    (cmd "unset output")))
+#+END_SRC
+**** intrap file
+#+BEGIN_SRC lisp
+(in-package #:penning-analysis)
+
+(defparameter *in-file* (midas:read-mpet-midas-file "/intrap/20140914/run221831.mid"))
+
+
+(defparameter *data-intrap*
+  (tof-data:data *in-file* 1
+		 :min-tof 10d0
+		 :max-tof 30d0
+		 :min-no-ions 1
+		 :max-no-ions 15))
+
+
+(let ((params (fp:get-init-params-from-midas-file
+	       ,*in-file* 30d0
+	       :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
+	       :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
+	       :tof-offset-min 0.1d0 :tof-offset-max 1d0 :tof-offset 0.5d0
+	       :p-interest-min 0.01d0
+	       :p-interest-max 1d0
+	       :p-interest 0.02d0
+	       :contaminant-offset-max 40d0
+	       :rho-m0 3d-4
+	       :rho-m0-min 3d-4
+	       :rho-m0-max 1d-3)))
+  (defparameter *res-2d-intrap*
+    (ba:find-optimum
+     (make-instance 'ba:nlopt :max-time 5d0)
+     (apply #'make-instance 'fp:2d-bayes-konig params)
+     (ba:initialize-from-source 'fp:2d-tof-distribution *data-intrap*))))
+
+
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+    (mgl-gnuplot:plot*
+     (list
+      (mgl-gnuplot:data*
+       (let+ (((&slots ba:input-model ba:model ba:data) *res-2d-intrap*))
+	 (ba:plot-result-models ba:input-model ba:model ba:data))
+       "with lines"))) 
+    (cmd "unset output")))
 
 #+END_SRC
+*** logbook
+- o.k., it finds the minimum but I can't plot the distributions
+- maybe because of the cache ?
+- no, likely because the log is to small
+- so, maybe normalize in the log scale
+- now getting division-by-zero when calculating likelihood
+- maybe use same trick as for sumlogexp
+- formula is:
+  \begin{equation}
+  \label{eq:4}
+  \frac{1}{\sqrt{2\pi}\sigma}
+  \left(
+        \exp \left[-\frac{\left( T - \mu \left( \omega_{RF} \right)\right)^2}{2\sigma^2} \right]
+  + \exp \left[ -\frac{ \left( T - T_{cont}\right)^2}{2\sigma^2} \right]
+  \right)
+  \end{equation}
+- why does this go to zero anyway ?
+- ok, ignore datapoints that would give a likelihood of zero, then it works
+- now, let's try some of the in-trap data
+- so, that works, but I have to limit the tof range quite
+  dramatically, since there is pretty big tail on the peaks
+- so, maybe introduce a asymmetrical gaussian ?
+- yeah, let's do that
+
 ** TODO create likelihood function for different assumptions
 *** [ ] only x values
 let's see if I can do that already 
@@ -98,6 +182,7 @@ let's see if I can do that already
 
 
 #+END_SRC
+** TODO see why calculating the hessian takes pretty long
 ** TODO make use of provided priors
 ** TODO introduce other types of error assumptions
 ** TODO plotting methods stuff diff. than xys
@@ -326,7 +411,7 @@ Next: example on how to use it:
     (cmd "reset")
     (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
     (cmd "set title 'mcmc'")
-    (ba:plot-result-model (ba:get-parameter-results *res-nlopt*))
+    (ba:plot-result (ba:get-parameter-results *res-nlopt*))
     (cmd "unset output")))
 
 (let ((ba::*use-sigma-f-min/max* 4))

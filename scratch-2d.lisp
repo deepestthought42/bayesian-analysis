@@ -39,7 +39,7 @@
      (A-1 :marginalize t :prior-type :jeffreys :min 0.01 :max 2 :default 1 :sample-sigma 0.001d0)
      (A-2 :marginalize t :prior-type :jeffreys :min 0.01 :max 2 :default 0.1 :sample-sigma 0.001d0)
      (sigma :marginalize t :prior-type :jeffreys :min 0.01 :max 10 :default 0.5 :sample-sigma 0.01d0))
-    (:p_of_x_i=f_i_of_x_i)
+    (:ln[p_of_x_i]=f_i_of_x_i)
     ((x)
       (let* ((A (+ A-1 A-2))
 	     (e1 (*  (/ A-1 A)

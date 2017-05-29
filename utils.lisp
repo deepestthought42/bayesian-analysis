@@ -16,10 +16,7 @@
 
 
 
-(defun sumlogexp (sequence &optional (factor 1d0))
-  "Returns ln[∑exp[xᵢ]], where the xᵢ are member of the sequence given
-in SEQUENCE. It is assuming the elementes of SEQUENCE to be of type
-DOUBLE-FLOAT and minimizes the losses due to floating point under/overflow."
+(defun calc-shift-log-into-calculatable-range (sequence)
   (let+ (((&values min max) (get-min/max sequence))
 	 (n (length sequence))
 	 ;; dividing by n here as all entries could be bigger/smaller than
@@ -42,9 +39,19 @@ DOUBLE-FLOAT and minimizes the losses due to floating point under/overflow."
 	      ;; max-log
 	      ((< min min-log)
 	       (if (<= (+ max (- min-log min)) max-log)
-		   (- min-log min)
+		   (- min min-log)
 		   (- max-log max)))
 	      (t (error 'program-error)))))
+    a))
+
+
+(defun sumlogexp (sequence &key (shift nil))
+  "Returns ln[∑exp[xᵢ-SHIFT]], where the xᵢ are member of the sequence
+given in SEQUENCE. It is assuming the elementes of SEQUENCE to be of
+type DOUBLE-FLOAT, the exponent is shifted by SHIFT which, if not
+given, is calculated to minimize losses in precision due to floating
+point under/overflow."
+  (let+ ((a (if shift shift (calc-shift-log-into-calculatable-range sequence))))
     (log (+ a (iter
 		(for x in sequence)
 		(sum (exp (- x a))))))))

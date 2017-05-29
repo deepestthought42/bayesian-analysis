@@ -54,6 +54,7 @@
 		 (for p in model-parameters-to-marginalize)
 		 (for i initially 0 then (1+ i))
 		 (setf (slot-value model p) (cffi:mem-aref xa :double i)))
+	       ;(setf (new-sample? model) t)
 	       (funcall ln-of-p*L)))
       #'fun)))
 
@@ -103,7 +104,9 @@
 
 
 (defun %laplacian-max-phi (x parameter algorithm model-to-optimize data)
-  (setf (slot-value model-to-optimize parameter) x)
+  (setf (slot-value model-to-optimize parameter) x
+;	(new-sample? model-to-optimize) t
+	)
   (let+ (((&values &ign &ign f) (%do-f-max model-to-optimize data algorithm))
 	 (model-for-hessian (copy-object model-to-optimize))
 	 (fun-for-hessian (get-ln-of-p*l model-for-hessian data))
@@ -129,7 +132,7 @@
 	 (i (position parameter model-parameters-to-marginalize)))
     (if (not i)
 	(error 'unknown-parameter :parameter-name parameter))
-    (sqrt (aref covariance i i))))
+    (sqrt (abs (aref covariance i i)))))
 
 (defun laplacian-approximation-marginal-posterior (nlopt-result parameter no-bins
 						   &key on-center
@@ -158,11 +161,13 @@
 	(finally
 	 (return
 	   (iter
-	     (with integral = (sumlogexp f-of-xs))
+	     (with a = (calc-shift-log-into-calculatable-range f-of-xs))
+	     (with shifted = (mapcar #'(lambda (x) (- x a)) f-of-xs))
+	     (with integral = (sumlogexp shifted :shift 0d0))
 	     (with result-array = (make-array (length f-of-xs)))
 	     (for i initially 0 then (1+ i))
 	     (for x in xs)
-	     (for f in f-of-xs)
+	     (for f in shifted)
 	     (setf (aref result-array i)
 		   (list (if on-center (- x (/ (+ max min) 2d0)) x)
 			 (exp (- f integral))))
@@ -170,7 +175,7 @@
 
 
 
-(defun %get-log-likelihood (model data)
+(defun %get-log-likelihood/laplacian-approx (model data)
   "Returns log[ p(q'|M,I)L(q')(2π^(M/2))(det I)^(-1/2) ]"
   (let+ ((fun-for-hessian (get-ln-of-p*l model data))
 	 (hessian (hessian fun-for-hessian model
@@ -187,7 +192,7 @@
 (defun laplacian-approximation-likelihood (nlopt-result)
   "Returns log[p(D|M,I)] for the optimal model found with nlopt"
   (let+ (((&slots model data) nlopt-result))
-    (%get-log-likelihood model data)))
+    (%get-log-likelihood/laplacian-approx model data)))
 
 
 

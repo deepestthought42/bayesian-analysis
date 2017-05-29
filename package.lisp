@@ -37,8 +37,6 @@
    #:find-optimum
    #:get-parameter-results
    #:plot-parameter-distribution
-   #:*debug-function*
-   #:default-debug-out
    #:plot-likelihood
    #:new-sample?
    #:cache
