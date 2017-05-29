@@ -92,10 +92,11 @@
 		   :f-val opt-val
 		   :model model
 		   :input-model input-model
-		   :nlopt-result retval
+		   :nlopt-result (nlopt:get-symbol 'nlopt:nlopt-result retval)
 		   :likelihood likelihood
 		   :data data
 		   :algorithm algorithm)))
+
 
 
 (defun %do-f-max (model-to-optimize data algorithm)

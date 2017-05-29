@@ -171,6 +171,19 @@ let's see how 2d fitting works with nlopt
   dramatically, since there is pretty big tail on the peaks
 - so, maybe introduce a asymmetrical gaussian ?
 - yeah, let's do that
+- o.k., looking at the 2d konig I have been using, there are quite some errors in it,
+- let's fix that first
+- ok, this seems to make more sense, but let's test it before judging
+- it still fits appropriately, but let's seperate the too distribution
+  width, as the background seems to be much broader
+- mmh, that didn't work too well, am I actually using the skew ? *->*
+  yes, I am, but not the contaminant-sigma
+- when using the contaminant-sigma, the optimization is running out of
+  time
+- I think at least, since I do not know the nlopt result values by
+  heart, let's change what we store in the result to the symbols
+  instead
+- yeah, running out of time
 
 ** TODO create likelihood function for different assumptions
 *** [ ] only x values
