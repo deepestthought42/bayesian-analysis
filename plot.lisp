@@ -61,6 +61,8 @@
        (mgl-gnuplot:data* plot-data options) x y min-x max-x offset))))
 
 
+(defparameter *data-transparency* 0.2)
+(defparameter *2d-data-circle-size* 1)
 
 (defun get-plot-mgl-data-depending-on-type (data style title xlabel ylabel)
   (labels ((f (slot) (first (slot-value data slot))))
@@ -84,8 +86,8 @@
 	    (= (no-error-parameters data)
 	       (no-dependent-parameters data)
 	       0))
-       (mgl-gnuplot:command "set style fill transparent solid 0.1 noborder")
-       (mgl-gnuplot:command "set style circle radius 0.5")
+       (mgl-gnuplot:command (format nil "set style fill transparent solid ~,2f noborder" *data-transparency*))
+       (mgl-gnuplot:command (format nil "set style circle radius ~,2f" *2d-data-circle-size*))
        (get-plot-mgl-plot-data data
 			       (f 'independent-parameters)
 			       (cdr (slot-value data 'independent-parameters))
@@ -127,6 +129,8 @@
 				    (style-options/data "pt 7")
 				    (style-options/input "with lines lt 3 lw 0.3 lc 0 title 'input input-model'")
 				    (style-options/result "with lines lw 1.5 lc 7 title 'result input-model'")
+				    (include-input-model t)
+				    (include-data t)
 				    (enclose-in-plot t))
   (let+ ((input-fun (ba:get-1d-plot-function input-model))
 	 (result-fun (ba:get-1d-plot-function result-model))
@@ -147,10 +151,9 @@
       (cmd "set xrange [~f:~f]" (- min-x offset) (- max-x offset))
       (cmd "set xlabel '~a'" x-label )
       (cmd "set ylabel '~a'" y-label))
-    (let ((d (list
-	      plot-data
-	      (mgl-gnuplot:data* model-input-data style-options/input)
-	      (mgl-gnuplot:data* model-results-data style-options/result))))
+    (let ((d `(,@(if include-data (list plot-data))
+	       ,@(if include-input-model (list (mgl-gnuplot:data* model-input-data style-options/input)))
+	       ,(mgl-gnuplot:data* model-results-data style-options/result))))
       (if enclose-in-plot (mgl-gnuplot:plot* d) d))))
 
 

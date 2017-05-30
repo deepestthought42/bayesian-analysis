@@ -103,13 +103,13 @@ let's see how 2d fitting works with nlopt
 #+BEGIN_SRC lisp
 (in-package #:penning-analysis)
 
-(defparameter *in-file* (midas:read-mpet-midas-file "/intrap/20140914/run221831.mid"))
+(defparameter *in-file* (midas:read-mpet-midas-file "/intrap/20140914/run221833.mid"))
 
 
 (defparameter *data-intrap*
   (tof-data:data *in-file* 1
 		 :min-tof 10d0
-		 :max-tof 30d0
+		 :max-tof 22d0
 		 :min-no-ions 1
 		 :max-no-ions 15))
 
@@ -128,7 +128,7 @@ let's see how 2d fitting works with nlopt
 	       :rho-m0-max 1d-3)))
   (defparameter *res-2d-intrap*
     (ba:find-optimum
-     (make-instance 'ba:nlopt :max-time 5d0)
+     (make-instance 'ba:nlopt :max-time 15d0)
      (apply #'make-instance 'fp:2d-bayes-konig params)
      (ba:initialize-from-source 'fp:2d-tof-distribution *data-intrap*))))
 
@@ -143,9 +143,10 @@ let's see how 2d fitting works with nlopt
      (list
       (mgl-gnuplot:data*
        (let+ (((&slots ba:input-model ba:model ba:data) *res-2d-intrap*))
-	 (ba:plot-result-models ba:input-model ba:model ba:data))
+	 (ba:plot-result-models ba:input-model ba:model ba:data :include-input-model nil))
        "with lines"))) 
     (cmd "unset output")))
+
 
 #+END_SRC
 *** logbook
@@ -184,7 +185,135 @@ let's see how 2d fitting works with nlopt
   heart, let's change what we store in the result to the symbols
   instead
 - yeah, running out of time
+- so, how much time would it need *->* setting limit to 15s and trying
+- oh, ok, 5.37s let's look at the output -- writing a small function
+  to output model to org-table
+- for that, clone org-integration into penning-trap project
+- done, also finished function to return org-mode table
+- not working, no real table, do it after the break
+- testing it with the following:
+  #+BEGIN_SRC lisp :results output raw
+  (in-package #:penning-analysis)
 
+  (let+ ((model (ba:model *res-2d-intrap*))
+         ((&slots ba:all-model-parameters
+                  ba:model-parameters-to-marginalize) model))
+    (org-mode-integration:output-slots model
+                                       (list ba:model-parameters-to-marginalize
+                                             (set-difference ba:all-model-parameters
+                                                             ba:model-parameters-to-marginalize))
+                                       :slot-value-format "~f"))
+  #+END_SRC
+
+  #+RESULTS:
+  |--------------------+-----------------------|
+  | OM-C               |    130961670.86165124 |
+  | RHO-M0             | 0.0003000108917287551 |
+  | ALPHA              |    0.9999308259956416 |
+  | TOF-OFFSET         |    0.3702480012236808 |
+  | SIGMA              |    1.3473790781085464 |
+  | SIGMA-CONTAMINANT  |    3.5483153004972507 |
+  | P-INTEREST         |   0.31396479322945614 |
+  | CONTAMINANT-OFFSET |    18.110909561877484 |
+  |--------------------+-----------------------|
+  | Z-END              |                 1.149 |
+  | Z-START            |                   0.0 |
+  | DELTA-PHI          |                   0.0 |
+  | DAMPING            |                   0.0 |
+  | RHO-P0             |             0.0000001 |
+  | NO-CONV            |                   1.0 |
+  | T-RF               |                  0.02 |
+  | V-0                |    0.2836629599463937 |
+  | E-0                |                   1.0 |
+  | B-MAX              |                   3.7 |
+  | OM-RF              |    130962485.95913957 |
+  | OM-M               |     38573.73123783692 |
+  | Q                  |                  11.0 |
+  |--------------------+-----------------------|
+- o.k, it fits alpha to be basically one, which would make it
+  superflous
+- let's remove it and replace it with a gaussian to see what happens
+- well, it is a lot slower than what I had before for some reason
+- let's not get hung up on performance for now, but look at the values
+  #+BEGIN_SRC lisp :results output raw
+  (in-package #:penning-analysis)
+
+  (let+ ((model (ba:model *res-2d-intrap*))
+         ((&slots ba:all-model-parameters
+                  ba:model-parameters-to-marginalize) model))
+    (org-mode-integration:output-slots model
+                                       (list ba:model-parameters-to-marginalize
+                                             (set-difference ba:all-model-parameters
+                                                             ba:model-parameters-to-marginalize))
+                                       :slot-value-format "~f"))
+  #+END_SRC
+
+  #+RESULTS:
+  |--------------------+------------------------|
+  | OM-C               |      130961670.6118449 |
+  | RHO-M0             | 0.00030002348100134223 |
+  | TOF-OFFSET         |     0.5327740057967829 |
+  | SIGMA              |      1.468445725050243 |
+  | SIGMA-CONTAMINANT  |     3.1767201946065273 |
+  | P-INTEREST         |    0.42172914305335285 |
+  | CONTAMINANT-OFFSET |     20.361997008836813 |
+  |--------------------+------------------------|
+  | Z-END              |                  1.149 |
+  | Z-START            |                    0.0 |
+  | DELTA-PHI          |                    0.0 |
+  | DAMPING            |                    0.0 |
+  | RHO-P0             |              0.0000001 |
+  | NO-CONV            |                    1.0 |
+  | T-RF               |                   0.02 |
+  | V-0                |     0.2836629599463937 |
+  | E-0                |                    1.0 |
+  | B-MAX              |                    3.7 |
+  | OM-RF              |     130962485.95913957 |
+  | OM-M               |      38573.73123783692 |
+  | Q                  |                   11.0 |
+  |--------------------+------------------------|
+- is there a difference in performance of the fit (not how long it
+  takes) when using two different sigmas ?
+- not using two sigmas
+    #+BEGIN_SRC lisp :results output raw
+  (in-package #:penning-analysis)
+
+  (let+ ((model (ba:model *res-2d-intrap*))
+         ((&slots ba:all-model-parameters
+                  ba:model-parameters-to-marginalize) model))
+    (org-mode-integration:output-slots model
+                                       (list ba:model-parameters-to-marginalize
+                                             (set-difference ba:all-model-parameters
+                                                             ba:model-parameters-to-marginalize))
+                                       :slot-value-format "~f"))
+  #+END_SRC
+
+  #+RESULTS:
+  |--------------------+------------------------|
+  | OM-C               |     130961670.56097616 |
+  | RHO-M0             | 0.00030170065806623287 |
+  | TOF-OFFSET         |     0.9635835898867411 |
+  | SIGMA              |     2.7650410715412903 |
+  | P-INTEREST         |    0.07539610131072237 |
+  | CONTAMINANT-OFFSET |     19.614364357359044 |
+  |--------------------+------------------------|
+  | Z-END              |                  1.149 |
+  | Z-START            |                    0.0 |
+  | DELTA-PHI          |                    0.0 |
+  | DAMPING            |                    0.0 |
+  | RHO-P0             |              0.0000001 |
+  | NO-CONV            |                    1.0 |
+  | T-RF               |                   0.02 |
+  | V-0                |     0.2836629599463937 |
+  | E-0                |                    1.0 |
+  | B-MAX              |                    3.7 |
+  | OM-RF              |     130962485.95913957 |
+  | OM-M               |      38573.73123783692 |
+  | Q                  |                   11.0 |
+  |--------------------+------------------------|
+- well, a lot faster and 0.3 Hz different in sigma
+- how big is the difference to a run where I cut out most of the tail ?
+  Setting :max-tof = 22
 ** TODO create likelihood function for different assumptions
 *** [ ] only x values
 let's see if I can do that already 

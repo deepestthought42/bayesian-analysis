@@ -67,6 +67,9 @@
    #:model-parameters-to-marginalize
    #:plot-result-models
    #:input-model
-   #:algorithm)
+   #:algorithm
+   #:all-model-parameters
+   #:*data-transparency*
+   #:*2d-data-circle-size*)
   (:nicknames ba))
 
