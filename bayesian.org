@@ -17,7 +17,6 @@
 | [2017-05-22 Mon 17:43] | changed distro to elementary       |
 
 
-
 ** prepare session
 #+BEGIN_SRC lisp :results none
 (ql:quickload :fare-quasiquote)
@@ -58,8 +57,8 @@ let's see how 2d fitting works with nlopt
 		 :max-no-ions 1))
 
 (let ((params (fp:get-init-params-from-midas-file
-	       ,*test-file* 4d0
-	       
+	       ,*test-file*
+               :om-c-deviation 4d0
 	       :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
 	       :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
 	       :tof-offset-min 0.1d0 :tof-offset-max 1d0 :tof-offset 0.5d0
@@ -103,7 +102,7 @@ let's see how 2d fitting works with nlopt
 #+BEGIN_SRC lisp
 (in-package #:penning-analysis)
 
-(defparameter *in-file* (midas:read-mpet-midas-file "/intrap/20140914/run221833.mid"))
+(defparameter *in-file* (midas:read-mpet-midas-file "/intrap/20140914/run221831.mid"))
 
 
 (defparameter *data-intrap*
@@ -111,11 +110,11 @@ let's see how 2d fitting works with nlopt
 		 :min-tof 10d0
 		 :max-tof 22d0
 		 :min-no-ions 1
-		 :max-no-ions 15))
+		 :max-no-ions 2))
 
 
 (let ((params (fp:get-init-params-from-midas-file
-	       ,*in-file* 30d0
+	       ,*in-file* :om-c-deviation 30d0
 	       :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
 	       :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
 	       :tof-offset-min 0.1d0 :tof-offset-max 1d0 :tof-offset 0.5d0
@@ -149,6 +148,10 @@ let's see how 2d fitting works with nlopt
 
 
 #+END_SRC
+
+#+RESULTS:
+: unset output
+
 *** logbook
 - o.k., it finds the minimum but I can't plot the distributions
 - maybe because of the cache ?
@@ -314,6 +317,245 @@ let's see how 2d fitting works with nlopt
 - well, a lot faster and 0.3 Hz different in sigma
 - how big is the difference to a run where I cut out most of the tail ?
   Setting :max-tof = 22
+- ok, *NA:* looking at performance, specifically start profiling
+  distribution generating stuff
+- profiling, let's start by looking at the hessian
+  #+BEGIN_SRC lisp :results none
+  (in-package #:penning-analysis)
+
+  (defparameter *in-file* (midas:read-mpet-midas-file "/intrap/20140914/run221831.mid"))
+
+  (defparameter *data-intrap-performance*
+    (tof-data:data *in-file*
+                   1
+                   :min-tof 10d0
+                   :max-tof 22d0
+                   :min-no-ions 1
+                   :max-no-ions 2))
+
+  (let ((params (fp:get-init-params-from-midas-file
+                 ,*in-file* :om-c-deviation 30d0
+                 :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
+                 :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
+                 :tof-offset-min -5d0 :tof-offset-max 5d0 :tof-offset 0.5d0
+                 :p-interest-min 0.01d0
+                 :p-interest-max 1d0
+                 :p-interest 0.02d0
+                 :contaminant-offset-max 40d0
+                 :rho-m0 3d-4
+                 :rho-m0-min 3d-4
+                 :rho-m0-max 1d-3)))
+    (defparameter *res-2d-intrap-performance*
+      (ba:find-optimum
+       (make-instance 'ba:nlopt :max-time 15d0)
+       (apply #'make-instance 'fp:2d-bayes-konig params)
+       (ba:initialize-from-source 'fp:2d-tof-distribution *data-intrap-performance*))))
+
+
+
+
+
+  (labels ((cmd (fmt-str &rest args)
+             (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+    (mgl-gnuplot:with-session ()
+      (cmd "reset")
+      (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+      (mgl-gnuplot:plot*
+       (list
+        (mgl-gnuplot:data*
+         (let+ (((&slots ba:input-model ba:model ba:data) *res-2d-intrap-performance*))
+           (ba:plot-result-models ba:input-model ba:model ba:data :include-input-model nil))
+         "with lines"))) 
+      (cmd "unset output")))
+
+
+  (sb-profile:profile ba:get-parameter-results ba::get-variance-for-param ba::hessian ba::%do-f-max
+                      make-array fp::2d-bayes-konig-model-function)
+
+  (ba:get-parameter-results *res-2d-intrap-performance* :no-bins 20)
+
+
+  (sb-profile:report)
+  #+END_SRC
+- starting to profile here
+- so, from the above it turns out that we spent most of the time
+  calculating the hessian: 
+| seconds |    gc | consed        | calls | sec/call | name                                      |
+|---------+-------+---------------+-------+----------+-------------------------------------------|
+|  11.304 | 0.096 | 4,138,956,976 |   130 | 0.086953 | BAYESIAN-ANALYSIS::HESSIAN                |
+|   0.240 | 0.000 | 67,423,520    |     1 | 0.239891 | BAYESIAN-ANALYSIS:GET-PARAMETER-RESULTS   |
+|   0.228 | 0.012 | 64,938,224    |   124 | 0.001838 | BAYESIAN-ANALYSIS::%DO-F-MAX              |
+|   0.000 | 0.000 | 163,792       |     6 | 0.000000 | BAYESIAN-ANALYSIS::GET-VARIANCE-FOR-PARAM |
+|---------+-------+---------------+-------+----------+-------------------------------------------|
+|  11.772 | 0.108 | 4,271,482,512 |   261 |          | Total                                     |
+- and the hessian also conses an immense amount ...
+- what is going on here ?
+- let's start by adding declaration and then see if we can remove all
+  this consing,
+- so with that, it takes 50% longer for some reason, what the hell is
+  going on here ?
+- how much time does it spend in make-array ? *A:* basically none
+- actually, let's create it's own point here
+
+** TODO 2d model profiling
+*** code
+#+BEGIN_SRC lisp :results none
+(in-package #:penning-analysis)
+
+
+(defun join-property-lists (default additions)
+  (iter
+  (for add initially additions then (cddr add))
+  (until (not add))
+  (setf (getf default (first add)) (second add))
+  (finally (return default))))
+
+
+(defun f/make-model (&key (filename "/intrap/20140914/run221831.mid")
+			   model-keywords)
+  (let+ ((file (midas:read-mpet-midas-file filename))
+	 (params (apply #'fp:get-init-params-from-midas-file
+			file
+			(join-property-lists '(:om-c-deviation 30d0
+					       :rho-m0-sampler (ba:gaussian-sampler :sigma 1d-5)
+					       :om-c-sampler (ba:gaussian-sampler :sigma 1d0)
+					       :tof-offset-min -5d0 :tof-offset-max 5d0 :tof-offset 0.5d0
+					       :p-interest-min 0.01d0
+					       :p-interest-max 1d0
+					       :p-interest 0.02d0
+					       :contaminant-offset-max 40d0
+					       :rho-m0 3d-4
+					       :rho-m0-min 3d-4
+					       :rho-m0-max 1d-3)
+					     model-keywords))))
+    (values (apply #'make-instance 'fp:2d-bayes-konig params) file)))
+
+(defun f/performance-do-fit (&key (filename "/intrap/20140914/run221831.mid")
+				  data-keywords model-keywords algorithm-keywords)
+  (let+ (((&values model file) (f/make-model :filename filename
+					     :model-keywords model-keywords))
+	 (data (apply #'tof-data:data file 1 (join-property-lists
+					      '(:min-tof 10d0 :max-tof 22d0
+						:min-no-ions 1 :max-no-ions 2)
+					      data-keywords)))
+	 (algorithm (apply #'make-instance 'ba:nlopt
+			   (join-property-lists '(:max-time 15d0)
+					       algorithm-keywords))))
+    (ba:find-optimum algorithm
+		     model
+		     (ba:initialize-from-source 'fp:2d-tof-distribution data))))
+
+#+END_SRC
+*** logbook
+- let's start with easier repeatability, then continue with looking at
+  nl-opt:optimization in terms of usage
+- with that, examine what happens if we change stuff
+- so, let's get a baseline on where we are:
+  #+BEGIN_SRC lisp 
+  (in-package #:penning-analysis)
+
+  (f/performance-do-fit)
+  (sb-profile::unprofile-all)
+  (sb-profile:reset)
+  (sb-profile:profile ba:get-parameter-results ba::get-variance-for-param
+                      ba::hessian
+                      ba::%do-f-max
+                      make-array
+                      ;fp::2d-bayes-konig-model-function
+                      )
+
+  (time
+   (ba:get-parameter-results *res-2d-intrap-performance* :no-bins 20))
+
+  #+END_SRC
+
+  #+RESULTS:
+  : #<BAYESIAN-ANALYSIS::OPTIMIZED-PARAMETERS {1010345333}>
+- with the following result:
+  | seconds |    gc | consed        |      calls | sec/call | name                                       |
+  |---------+-------+---------------+------------+----------+--------------------------------------------|
+  |  13.569 | 0.040 | 1,833,178,976 |        130 | 0.104376 | BAYESIAN-ANALYSIS::HESSIAN                 |
+  |   6.997 | 0.048 | 2,369,177,696 | 50,061,312 | 0.000000 | FIT-PENNING::2D-BAYES-KONIG-MODEL-FUNCTION |
+  |   0.205 | 0.000 | 32,341,840    |        124 | 0.001651 | BAYESIAN-ANALYSIS::%DO-F-MAX               |
+  |   0.000 | 0.000 | 130,768       |          6 | 0.000000 | BAYESIAN-ANALYSIS::GET-VARIANCE-FOR-PARAM  |
+  |   0.000 | 0.000 | 36,168,976    |          1 | 0.000000 | BAYESIAN-ANALYSIS:GET-PARAMETER-RESULTS    |
+  |   0.000 | 0.000 | 32,752        |        272 | 0.000000 | MAKE-ARRAY                                 |
+  |---------+-------+---------------+------------+----------+--------------------------------------------|
+  |  20.771 | 0.088 | 4,271,031,008 | 50,061,845 |          | Total                                      |
+- 2d-bayes-konig-model-function is consing 48 byte per call, which seems to be okay for now
+- but why is it spending that much time in hessian still
+- so, start to unfold this a bit by profiling what is now mostly lambdas
+  #+BEGIN_SRC lisp
+  (in-package #:penning-analysis)
+
+  (f/performance-do-fit)
+  (sb-profile::unprofile-all)
+  (sb-profile:reset)
+  (sb-profile:profile ba:get-parameter-results ba::get-variance-for-param
+                      ba::hessian
+                      ba::%do-f-max
+                      ;fp::2d-bayes-konig-model-function
+                      )
+
+  (time
+   (ba:get-parameter-results *res-2d-intrap-performance* :no-bins 20))
+
+  #+END_SRC
+
+- ok, so maybe do these two things:
+  + change slot-value calls to array calls all the time
+  + do not use a return value but a struct
+- let's test this by hand first
+- though, which seems to take a long time
+- what I am doing ? plan:
+- compare call to hand optimized version of
+  2d-bayes-konig-model-function to non-optimized by calling a million
+  times or so with real data
+- while keeping an eye on the following:
+  + same results
+  + memory usage
+  + execution time
+- *after that:* see if we can make it even faster
+- *then*, look at the likelihood funtions and see what can be done about
+  them
+- define function to create the array for the model 
+- let's make the hand optimized model function actually work
+- for that we need a model to get the parameters from
+- split f/performance-do-fit into model creation and optimization function
+- with that, we compare 10 million function calls:
+  #+BEGIN_QUOTE
+  PA> (fp::test-function)
+  Evaluation took:
+  0.585 seconds of real time
+  0.584000 seconds of total run time (0.584000 user, 0.000000 system)
+  99.83% CPU
+  1,518,937,394 processor cycles
+  160,006,144 bytes consed
+  
+  NIL
+  PA> (fp::test-function2)
+  Evaluation took:
+  1.147 seconds of real time
+  1.140000 seconds of total run time (1.128000 user, 0.012000 system)
+  [ Run times consist of 0.008 seconds GC time, and 1.132 seconds non-GC time. ]
+  99.39% CPU
+  2,973,609,825 processor cycles
+  479,999,536 bytes consed
+  
+  NIL
+  #+END_QUOTE
+- roughly half the time but still consing 16 byte per call, where though ?
+- and how much does it matter ?
+- first though, need to try it with static-vectors
+- that works pretty well
+- ok, let's integrate that into the code
+- that means changing the slot-values to access to the array (maybe by
+  index); where does this need to happen ?
+  + [ ] priors
+  + [ ] optimization function in general
+- another idea would be to actually macroexpand the find-optimum
+  methods, but let's look at that later
+  
 ** TODO create likelihood function for different assumptions
 *** [ ] only x values
 let's see if I can do that already 
@@ -498,7 +740,7 @@ Next: example on how to use it:
 		 :max-no-ions 5))
 
 (let ((params (fp:get-init-params-from-midas-file
-	       ,*test-file* 4d0
+	       ,*test-file* :om-c-deviation 4d0
 	       ;:om-c-prior (make-instance 'ba:gaussian-prior :mu 3.222541d7 :sigma 10d0)
 	       :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
 	       :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
@@ -513,7 +755,7 @@ Next: example on how to use it:
      (ba:initialize-from-source 'fp:bayes-tof *data*))))
 
 (let ((params (fp:get-init-params-from-midas-file
-	       ,*test-file* 4d0
+	       ,*test-file* :om-c-deviation 4d0
 	       ;:om-c-prior (make-instance 'ba:gaussian-prior :mu 3.222541d7 :sigma 10d0)
 	       :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
 	       :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
@@ -529,7 +771,7 @@ Next: example on how to use it:
 
 
 (let ((params (fp:get-init-params-from-midas-file
-	       ,*test-file* 4d0
+	       ,*test-file* :om-c-deviation 4d0
 	       ;:om-c-prior (make-instance 'ba:gaussian-prior :mu 3.222541d7 :sigma 10d0)
 	       :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
 	       :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
@@ -585,7 +827,6 @@ Next: example on how to use it:
 
 
 
-
 (test-gaussian)
 
 
@@ -632,7 +873,7 @@ Next: example on how to use it:
   (labels ((cmd (fmt-str &rest args)
              (mgl-gnuplot:command (apply #'format nil fmt-str args)))
            (get-params ()
-             (fp:get-init-params-from-midas-file *test-file* 10d0
+             (fp:get-init-params-from-midas-file *test-file* :om-c-deviation 10d0
                                                  :om-c-sample-sigma 0.5d0
                                                  :tof-offset-min -1d0
                                                  :tof-offset 0d0
@@ -661,7 +902,7 @@ Next: example on how to use it:
         (cmd "unset output"))))
 
   (labels ((get-params ()
-             (fp:get-init-params-from-midas-file *test-file* 10d0
+             (fp:get-init-params-from-midas-file *test-file* :om-c-deviation 10d0
                                                  :om-c-sample-sigma 0.5d0
                                                  :rho-m0 1d-4
                                                  :tof-offset-marginalize nil)))
@@ -777,7 +1018,7 @@ Next: example on how to use it:
                    :max-no-ions 5))
 
   (let ((params (fp:get-init-params-from-midas-file
-                 ,*test-file* 4d0
+                 ,*test-file* :om-c-deviation 4d0
                  :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
                  :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
                  :tof-offset-min 0d0 :tof-offset-max 2d0
@@ -1355,7 +1596,7 @@ hastings:
 (defparameter *1d-result*
   (ba:optimize (make-instance 'ba:metropolis-hastings :no-iterations 50000)
 			   (apply #'make-instance 'fp:bayes-konig
-				  (fp:get-init-params-from-midas-file *test-file* 5d0
+				  (fp:get-init-params-from-midas-file *test-file* :om-c-deviation 5d0
 								   :om-c-sample-sigma 0.5d0
 								   :tof-offset-sample-sigma 0.01d0
 								   :rho-m0-sample-sigma 1d-5))

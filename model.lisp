@@ -107,6 +107,7 @@
 		 :initarg ,(n category :is-key t)
 		 :initform ,(make-default-param slot-name use-default default coerce)))))
     `((,name :accessor ,name :initarg ,(alexandria:make-keyword name)
+	     :type double-float
 	     :initform ,(make-default-param name t default t))
       ,(standard-slot :marginalize t marginalize)
       ,(standard-slot :prior t prior)
@@ -265,4 +266,3 @@
 
 
  
-

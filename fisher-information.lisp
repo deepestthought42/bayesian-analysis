@@ -1,6 +1,9 @@
 (in-package #:bayesian-analysis)
 
 
+(declaim (optimize (debug 3) (safety 1) (speed 3)))
+
+
 (defclass fisher-information ()
   ((matrix :initarg :matrix :accessor matrix 
 	   :initform (error "Must initialize matrix."))
@@ -19,6 +22,7 @@
 
 (defun get-optimal-delta (model &optional (epsilon long-float-epsilon epsilon-given-p))
   (let+ (((&slots model-parameters-to-marginalize) model))
+    (declare (type (double-float 0d0) epsilon))
     (iter
       (for param in model-parameters-to-marginalize)
       ;; fixme: should look up what happens if the value is below the
@@ -29,7 +33,8 @@
 			 (min
 			  1d-3
 			  (* (expt epsilon 0.25d0)
-			     (slot-value model param)))))))))
+			     (the double-float
+				  (slot-value model param))))))))))
 
 
 (defun hessian (func model params.delta &optional (sign 1d0))
@@ -66,14 +71,19 @@ h_{j,k}=-\frac{1}{4\delta_j\delta_k}
 "
   (let+ ((dim (length params.delta))
 	 ;; fixmee: type information here
-	 (ret-val (make-array (list dim dim))))
+	 (ret-val (make-array (list dim dim) :element-type 'double-float)))
+    (declare (type (integer 1 #.(expt 2 15)) dim)
+	     (type (simple-array double-float (* *))))
     (labels ((param (i) (first (nth i params.delta)))
 	     (delta (i) (second (nth i params.delta)))
 	     (d (param delta)
+	       (declare (type double-float delta))
 	       (incf (slot-value model param) delta))
 	     (h-j-k (param-j delta-j param-k delta-k)
 	       (let ((a 0d0) (b 0d0)
 		     (c 0d0) (d 0d0))
+		 (declare (type double-float delta-j delta-k sign)
+			  (type (function () double-float) func))
 		 (d param-j delta-j)
 		 (d param-k delta-k)
 		 (setf a (funcall func)) ; f(t + d_je_j + d_ke_k)
@@ -88,8 +98,10 @@ h_{j,k}=-\frac{1}{4\delta_j\delta_k}
 			  (- c d))
 		       (* 4d0 delta-j delta-k))))))
       (iter
+	(declare (type fixnum j))
 	(for j from 0 below dim)
 	(iter
+	  (declare (type fixnum k))
 	  (for k from j below dim)
 	  (let+ ((grad (h-j-k (param j) (delta j)
 			      (param k) (delta k))))
@@ -98,16 +110,6 @@ h_{j,k}=-\frac{1}{4\delta_j\delta_k}
       ret-val)))
 
 
-(defmethod get-fisher-information-matrix ((result nlopt-result) &key)
-  "See generic function for documentation."
-  (let+ (((&slots model data likelihood) result)
-	 ((&slots log-of-all-priors) model)
-	 ((&slots varying/log-of-likelihood constant/log-of-likelihood) likelihood))
-    (labels ((fun ()
-	       (+ (funcall varying/log-of-likelihood)
-		  (funcall constant/log-of-likelihood)
-		  (funcall log-of-all-priors))))
-      (hessian #'fun model (get-optimal-delta model) -1d0))))
 
 
 #+nil

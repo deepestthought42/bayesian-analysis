@@ -1,5 +1,9 @@
 (in-package #:bayesian-analysis)
 
+
+(declaim (optimize (debug 1) (safety 1) (speed 3)))
+
+
 (define-condition nlopt-couldnt-optimize ()
   ((result :accessor nlopt-result :initarg :nlopt-result
 		 :initform 'nlopt:+nlopt_failure+)
@@ -39,6 +43,10 @@
 	 ((&slots varying/log-of-likelihood
 		  constant/log-of-likelihood model) likelihood)
 	 ((&slots log-of-all-priors model-parameters-to-marginalize) model))
+    (declare (type (function () double-float)
+		   varying/log-of-likelihood
+		   constant/log-of-likelihood
+		   log-of-all-priors))
     (lambda ()
       (+
        (funcall varying/log-of-likelihood)
@@ -53,7 +61,9 @@
 	       (iter
 		 (for p in model-parameters-to-marginalize)
 		 (for i initially 0 then (1+ i))
-		 (setf (slot-value model p) (cffi:mem-aref xa :double i)))
+		 (declare (type (integer 0 #.(expt 2 15)) i))
+		 (setf (slot-value model p)
+		       (the double-float (cffi:mem-aref xa :double i))))
 	       ;(setf (new-sample? model) t)
 	       (funcall ln-of-p*L)))
       #'fun)))
@@ -116,7 +126,8 @@
 	 (determinant (lla:det hessian))
 	 ;; this might be superflous, could use the above f ?
 	 (f (funcall (get-ln-of-p*l model-to-optimize data)))
-	 (d (abs (sqrt determinant))))
+	 (d (sqrt (abs determinant))))
+    (declare (type (double-float 0d0) d f))
     (- f (log d))))
 
 
@@ -182,9 +193,11 @@
 	 (hessian (hessian fun-for-hessian model
 			   (get-optimal-delta model) -1d0))
 	 (determinant (lla:det hessian))
-	 (M (array-dimension hessian 0)) ;; rank of fisher information
-	 (ln-of-p*L (funcall (get-ln-of-p*l model data)))
-	 (det (abs (sqrt determinant))))
+	 (M (coerce (array-dimension hessian 0) 'double-float)) ;; rank of fisher information
+	 (fun (get-ln-of-p*l model data))
+	 (ln-of-p*L (funcall fun))
+	 (det (sqrt (abs determinant))))
+    (declare (type double-float determinant det ln-of-p*L))
     (+ ln-of-p*L
        (log (expt (* 2 pi) (/ M 2d0)))
        (- (log det))))) 
@@ -238,3 +251,4 @@
 		   :parameter-infos param-infos
 		   :data data
 		   :model model)))
+
