@@ -70,6 +70,7 @@
    #:algorithm
    #:all-model-parameters
    #:*data-transparency*
-   #:*2d-data-circle-size*)
+   #:*2d-data-circle-size*
+   #:no-dimensions)
   (:nicknames ba))
 

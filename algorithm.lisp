@@ -93,23 +93,27 @@
 
 
 
-(defun make-parameter-distribution (result p no-bins start end confidence-level)
+(defun make-parameter-distribution (result p no-bins start end confidence-level no-iterations
+				    &key (fn-on-x #'identity))
   (let+ (((&values binned-data median min max max-counts)
 	  (bin-parameter-values result p
 				:no-bins no-bins
 				:start start :end end
-				:confidence-level confidence-level))
+				:confidence-level confidence-level
+				:fn-on-x fn-on-x))
 	 (abs-error (/ (- max min) 2d0)))
-    (make-instance 'parameter-distribution
-		   :name p
-		   :median median
-		   :confidence-level confidence-level
-		   :confidence-min min
-		   :confidence-max max
-		   :relative-error (/ abs-error median)
-		   :absolute-error abs-error
-		   :max-counts max-counts
-		   :binned-data binned-data)))
+    (labels ((x (x)
+	       (funcall fn-on-x x)))
+      (make-instance 'parameter-distribution
+		     :name p
+		     :median (x median)
+		     :confidence-level confidence-level
+		     :confidence-min (x min)
+		     :confidence-max (x max)
+		     :relative-error (x (/ abs-error median))
+		     :absolute-error (x abs-error)
+		     :max-counts max-counts
+		     :binned-data binned-data))))
 
 (defmethod get-parameter-info ((optimized-params optimized-parameters) parameter-name)
   (let+ (((&slots parameter-infos) optimized-params))

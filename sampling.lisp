@@ -33,7 +33,8 @@
     (iter
       (for slot-name in-sequence parameters-to-marginalize with-index i)
       (for slot-val = (get-value-of-slot/cat :sampler slot-name object))
-      (for sampler = (if (listp slot-val) (apply #'make-instance slot-val) slot-val))
+      (for slot-sampler-sigma = (get-value-of-slot/cat :sample-sigma slot-name object))
+      (for sampler = (if (symbolp slot-val) (make-instance slot-val :sigma slot-sampler-sigma) slot-val))
       (for sampling-lambda = (get-sampling-lambda sampler object slot-name))
       (setf (aref sampler-array i) sampling-lambda)
       (finally (return (values sampler-array no-samplers))))))

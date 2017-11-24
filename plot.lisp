@@ -114,7 +114,8 @@
 			     (style-options/data "pt 7")
 			     (style-options/input "with lines lt 3 lw 0.3 lc 0 title 'input input-model'")
 			     (style-options/result "with lines lw 1.5 lc 7 title 'result input-model'")
-			     (enclose-in-plot t))
+			     (enclose-in-plot t)
+			     (overwrite-xlabel))
   (let+ (((&slots model data algorithm-result) result)
 	 ((&slots input-model) algorithm-result))
     (plot-result-models input-model model data
@@ -122,7 +123,8 @@
 			:style-options/data style-options/data
 			:style-options/input style-options/input
 			:style-options/result style-options/result
-			:enclose-in-plot enclose-in-plot)))
+			:enclose-in-plot enclose-in-plot
+			:overwrite-xlabel overwrite-xlabel)))
 
 (defmethod plot-result-models ((input-model model) (result-model model) data 
 			       &key (no-steps 1000)
@@ -131,7 +133,8 @@
 				    (style-options/result "with lines lw 1.5 lc 7 title 'result input-model'")
 				    (include-input-model t)
 				    (include-data t)
-				    (enclose-in-plot t))
+				    (enclose-in-plot t)
+				    (overwrite-xlabel))
   (let+ ((input-fun (ba:get-1d-plot-function input-model))
 	 (result-fun (ba:get-1d-plot-function result-model))
 	 ((&values plot-data x-label y-label min-x max-x offset)
@@ -149,7 +152,7 @@
 	       (apply #'format t fmt-str args)
 	       (mgl-gnuplot:command (apply #'format nil fmt-str args))))
       (cmd "set xrange [~f:~f]" (- min-x offset) (- max-x offset))
-      (cmd "set xlabel '~a'" x-label )
+      (cmd "set xlabel '~a'" (if overwrite-xlabel overwrite-xlabel x-label))
       (cmd "set ylabel '~a'" y-label))
     (let ((d `(,@(if include-data (list plot-data))
 	       ,@(if include-input-model (list (mgl-gnuplot:data* model-input-data style-options/input)))
@@ -178,28 +181,35 @@
 	       (collect (list i (aref parameter-array index-param i)))))
 	    (format nil "with steps title '~a'" p)))))))
 
-(defmethod plot-parameter-distribution ((result optimized-parameters) parameter &key title)
+(defmethod plot-parameter-distribution ((result optimized-parameters) parameter
+					&key title  (offset-around-median t))
   (let+ (((&slots parameter-infos) result)
 	 (param (find parameter parameter-infos :key #'name))
-	 ((&slots binned-data median confidence-min confidence-max max-counts) param))
+	 ((&slots binned-data median confidence-min confidence-max max-counts) param)
+	 (offset (if offset-around-median median 0d0)))
     (labels ((cmd (fmt-str &rest args)
 	       (apply #'format t fmt-str args)
 	       (mgl-gnuplot:command (apply #'format nil fmt-str args))))
       (iter
 	(for d in binned-data)
-	(incf (car d) (- median)))
+	(incf (car d) (- offset)))
       ;(cmd "set style fill solid 0.1 noborder")
-      (cmd "set arrow from ~,10f,0 to ~,10f,~,10f nohead front lt 1 lw 2 lc 7" 0 0 (* 1.01 max-counts))
+      (cmd "set arrow from ~,10f,0 to ~,10f,~,10f nohead front lt 1 lw 2 lc 7"
+	   (if offset-around-median 0d0 median)
+	   (if offset-around-median 0d0 median)
+	   (* 1.05 max-counts))
       (mgl-gnuplot:plot*
        (list
 	(mgl-gnuplot:data* (iter
 			     (for (x c) in binned-data)
-			     (if (<= (- confidence-min median) x (- confidence-max median))
+			     (if (<= (- confidence-min offset) x (- confidence-max offset))
 				 (collect (list x c))))
-			   (format nil "u 1:2 with boxes lc 7 title ''"))
+			   (format nil "u 1:2 with boxes lc 7 fs solid 0.3 noborder title ''"))
 	(mgl-gnuplot:data* binned-data (format nil "u 1:2 with histeps lc 0 title '~a'"
-					       (if title title
-						   (format nil "~a - ~f" parameter median)))))))))
+					       (cond
+						 ((stringp title) title)
+						 ((functionp title) (funcall title median))
+						 (t (format nil "~a, median: ~,3f" parameter median))))))))))
 
 
 

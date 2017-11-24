@@ -57,6 +57,7 @@
     (:prior -prior)
     (:min -min)
     (:max -max)
+    (:sample-sigma -sample-sigma)
     (:sampler -sampler)
     (:description -description)))
 
@@ -86,9 +87,8 @@
 					   &key (default 0d0)
 						(min 0d0)
 						(max 0d0)
-						(prior-mu (/ (+ max min) 2d0))
-						(prior-sigma (if (= min max) 1d0 (/ (- max min) 2d0)))
-						(sampler 'ba:*default-sampler*)
+						(sample-sigma (if (= min max) 1d0 (/ (- max min) 20d0)))
+						(sampler `'ba:gaussian-sampler)
 						(marginalize nil)
 						(description "")
 						(prior :certain))
@@ -114,6 +114,7 @@
       ,(standard-slot :min t min t)
       ,(standard-slot :max t max t)
       ,(standard-slot :sampler t sampler)
+      ,(standard-slot :sample-sigma t sample-sigma)
       ,(standard-slot :description t description))))
 
 

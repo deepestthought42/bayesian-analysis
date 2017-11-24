@@ -46,7 +46,9 @@ let's see how 2d fitting works with nlopt
 #+BEGIN_SRC lisp 
 (in-package #:penning-analysis)
 
-(defparameter *test-file* (midas:read-mpet-midas-file "/data_analysis/midas-files/20160630/run277347.mid"))
+(defparameter *test-file*
+  (midas:read-mpet-midas-file
+   "/home/renee/phd/data_analysis/201607CD_In/midas-files/20160630/run277347.mid"))
 
 
 (defparameter *data*
@@ -56,8 +58,8 @@ let's see how 2d fitting works with nlopt
 		 :min-no-ions 1
 		 :max-no-ions 1))
 
-(let ((params (fp:get-init-params-from-midas-file
-	       ,*test-file*
+(let ((params (fp:get-init-params-from-midas-file 
+	       ,*test-file* 25d0
                :om-c-deviation 4d0
 	       :rho-m0-sampler '(ba:gaussian-sampler :sigma 1d-5)
 	       :om-c-sampler '(ba:gaussian-sampler :sigma 1d0)
@@ -646,21 +648,18 @@ approximated with \ref{eq:lap-approx}.
       ((a :default 1 :min -1 :max 1 :prior :uniform :marginalize t)
        (b :prior :uniform :default 2 :min 2 :max 4 :marginalize t))
       (:d_i=f_i+gaussian_error_i_unequal_sigma)
-      ((x)
-        (+ (* a x) b)))
+      ((x) (+ (* a x) b)))
 
   (labels ((cmd (fmt-str &rest args)
              (mgl-gnuplot:command (apply #'format nil fmt-str args))))
     (mgl-gnuplot:with-session ()
       (cmd "reset")
       (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
-      (plot-result-model
+      (plot-result-models
        (get-parameter-results
-        (ba:find-optimum
-         (make-instance 'ba:nlopt)
-         (make-instance 'quadratic)
-         (ba:initialize-from-source '1d-data t))
-        :no-bins 100))
+        (ba:find-optimum (make-instance 'ba:nlopt)
+                         (make-instance 'quadratic)
+                         (ba:initialize-from-source '1d-data t)) :no-bins 100))
       (cmd "unset output")))
 
 
@@ -693,6 +692,7 @@ approximated with \ref{eq:lap-approx}.
       (make-instance 'ba:nlopt)
       (make-instance 'quadratic)
       data)))
+
   #+END_SRC
 - this seems to make sense; need to come up with a test for this
 - ok, this could be it, needs more testing, though
@@ -1589,21 +1589,97 @@ hastings:
 (in-package #:bayesian-analysis)
 
 
-(defparameter *test-file* (midas:read-mpet-midas-file "/data_analysis/midas-files/20160630/run277347.mid"))
+(defparameter *test-file*
+  (midas:read-mpet-midas-file "/home/renee/phd/data_analysis/201607CD_In/midas-files/20160630/run277347.mid"))
+
+(defparameter *test-file2*
+  (midas:read-mpet-midas-file
+   "/home/renee/phd/data_analysis/first-nrich-reevaluated/first-nrich-midas-files/20101210/run088167.mid"
+   :om-m (* 2 pi 6100) :om-c (* 2 pi 10035195d0) :charge 15d0))
 
 
 
-(defparameter *1d-result*
-  (ba:optimize (make-instance 'ba:metropolis-hastings :no-iterations 50000)
-			   (apply #'make-instance 'fp:bayes-konig
-				  (fp:get-init-params-from-midas-file *test-file* :om-c-deviation 5d0
-								   :om-c-sample-sigma 0.5d0
-								   :tof-offset-sample-sigma 0.01d0
-								   :rho-m0-sample-sigma 1d-5))
-			   (ba:initialize-from-source 'fp:bayes-tof
-						      (tof-data:data *test-file* 1
-								     :min-tof 20d0 :max-tof 50d0
-								     :min-no-ions 1 :max-no-ions 1))))
+
+
+(defun do-metrohastings (file &key (use-nlopt-for-initial t) (no-iterations 10000) (no-bins 100)
+				   (min-tof 5) (max-tof 25)
+				   (min-ions 1) (max-ions 1))
+  (let+ ((init-params (fp:get-init-params-from-midas-file file 20d0
+							  :om-c-sample-sigma 5d0
+							  :separation 10d0
+							  :rho-m0-max 1d-2
+							  :tof-offset-marginalize t
+							  :tof-offset-sample-sigma 1d0
+							  :tof-offset-min -20d0))
+	 (initial-model2 (apply #'make-instance 'fp::bayes-double-konig init-params))
+	 (initial-model (apply #'make-instance 'fp::bayes-konig init-params))
+	 (data (ba:initialize-from-source 'fp:bayes-tof 
+					  (tof-data:data file 1
+							 :min-tof min-tof :max-tof max-tof
+							 :min-no-ions min-ions :max-no-ions max-ions)))
+	 (nlopt-result (ba:find-optimum (make-instance 'ba:nlopt :max-time 5d0) initial-model data))
+	 (nlopt-result2 (ba:find-optimum (make-instance 'ba:nlopt :max-time 5d0) initial-model2 data))
+	 (mcmc-result (ba:find-optimum (make-instance 'ba:metropolis-hastings :no-iterations no-iterations)
+				       (if use-nlopt-for-initial (ba:model nlopt-result) initial-model)
+				       data))
+	 (mcmc-result2 (ba:find-optimum (make-instance 'ba:metropolis-hastings :no-iterations no-iterations)
+					(if use-nlopt-for-initial (ba:model nlopt-result2) initial-model2)
+					data)))
+    (values mcmc-result mcmc-result2 data nlopt-result nlopt-result2)))
+
+
+
+(let+ ((no-bins 100)
+       ((&values mcmc-result mcmc-result2 data)
+	(do-metrohastings vanessa-reanalysis::*rb98-added-runs* :max-tof 28 :no-iterations 50000
+	  :use-nlopt-for-initial t)))
+  (ba::calculate-odds-ratio-1/2
+   (ba:model (ba:get-parameter-results mcmc-result2 :no-bins no-bins))
+   (ba:model (ba:get-parameter-results mcmc-result :no-bins no-bins))
+   data))
+
+
+
+
+
+
+
+
+
+
+
+(let+  (((&values mcmc-result mcmc-result2)
+	 (do-metrohastings vanessa-reanalysis::*rb98-added-runs* :max-tof 50 :no-iterations 10000
+	   :use-nlopt-for-initial t)
+	 ;; (do-metrohastings *test-file2* :max-tof 50 :no-iterations 50000
+	 ;;   :use-nlopt-for-initial t)
+	 ))
+  (labels ((cmd (fmt-str &rest args)
+	     (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+    (mgl-gnuplot:with-session ()
+      (cmd "reset")
+      (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+      ;; (mgl-gnuplot:plot*
+      ;;  (ba:plot-parameter-distribution (ba:get-parameter-results mcmc-result2 :no-bins 100) 'fp::om-c))
+      ;; (mgl-gnuplot:plot*
+      ;;  (ba:plot-parameter-distribution (ba:get-parameter-results nlopt-result :no-bins 100) 'fp::rho-m0))
+      ;; (mgl-gnuplot:plot*
+      ;;  (ba:plot-iteration-values mcmc-result :params-to-plot '(fp::om-c)))
+      (mgl-gnuplot:plot* (ba:plot-result (ba:get-parameter-results mcmc-result :no-bins 100)))
+      (cmd "unset output"))
+    ))
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+    (let+ (((&slots ba::input-model ba:model ba:data) *result*))
+      (mgl-gnuplot:plot*
+       (ba:plot-parameter-distribution
+	(do-metrohastings *test-file* :max-tof 50 :no-iterations 100000)
+				       'fp::om-c))) 
+    (cmd "unset output")))
 #+END_SRC
 
 that was easy enough

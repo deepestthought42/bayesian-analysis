@@ -13,6 +13,7 @@
 (defclass mcmc-optimization-result (optimization-result)
   ((no-accepted-iterations :initarg :no-accepted-iterations :accessor no-accepted-iterations 
 			   :initform 0)
+   (no-priors-not-in-range :accessor no-priors-not-in-range :initarg :no-priors-not-in-range :initform 0)
    (no-iterations :initarg :no-iterations :accessor no-iterations :initform 0)
    (iteration-accumulator :initarg :iteration-accumulator :accessor iteration-accumulator 
 			  :initform (error "Must initialize iteration-accumulator."))))
@@ -35,7 +36,8 @@
     (setf no-marginalized-parameters (length marginalized-parameters))))
 
 (defmethod bin-parameter-values ((result mcmc-optimization-result) parameter
-				 &key (no-bins 100) (start 0) end (confidence-level 0.69))
+				 &key (no-bins 100) (start 0) end (confidence-level 0.69)
+				      (fn-on-x #'identity))
   (let+ (((&slots iteration-accumulator) result)
 	 ((&slots marginalized-parameters parameter-array
 		  no-iterations) iteration-accumulator)
@@ -79,20 +81,24 @@
 	(finally
 	 (let+ (((&values min max)
 		 (%calculate-confidance binned no-data-points confidence-level)))
-	   (return (values (map 'list #'identity binned)
-			   median min max max-counts))))))))
+	   (return (values (map 'list #'(lambda (n) (list (funcall fn-on-x (first n))
+						     (/ (second n) no-data-points)))
+				binned)
+			   median min max (/ max-counts no-data-points)))))))))
 
 
 (defmethod get-parameter-results ((result mcmc-optimization-result)
-				  &key (start 0) end (confidence-level 0.69)
-				       (no-bins 50))
+				  &key (start 0) end (confidence-level 0.9545)
+				       (no-bins 50) (fn-on-x #'identity))
   (let+ (((&slots iteration-accumulator input-model no-iterations data) result)
 	 ((&slots model-parameters-to-marginalize) input-model)
 	 (model (copy-object input-model))
 	 (end (if end end no-iterations))
 	 (param-infos (iter
 			(for p in model-parameters-to-marginalize)
-			(for param-dist = (make-parameter-distribution result p no-bins start end confidence-level))
+			(for param-dist = (make-parameter-distribution result p no-bins start end
+								       confidence-level no-iterations
+								       :fn-on-x fn-on-x))
 			(setf (slot-value model p) (coerce (median param-dist) 'double-float))
 			(collect param-dist))))
     (make-instance 'optimized-parameters
@@ -104,7 +110,7 @@
 
 
 (defmethod find-optimum ((algorithm metropolis-hastings) input-model data
-			 &key random-numbers)
+			 &key random-numbers (force-accept-after 100))
   (labels ((!> (fun)
 	     (declare (type (function () t) fun))
 	     (funcall fun))
@@ -131,19 +137,22 @@
 		     varying/log-of-likelihood
 		     varying/log-of-priors))
       (iter
-	(declare (type fixnum accepted-iterations i no-iterations)
+	(declare (type fixnum accepted-iterations i no-iterations discarded-priors) 
 		 (type (simple-array (double-float 0d0)) random-numbers)
 		 (type double-float log-mh-ratio log-u
 		       nominator denominator)
 		 (ftype (function ((function () double-float)) double-float) ->)
 		 (ftype (function ((function () t)) t) !>))
 	(with accepted-iterations = 0)
+	(with discarded-priors = 0)
 	(with denominator = (+ (-> varying/log-of-priors)
 			       (-> varying/log-of-likelihood)))
 	(for i from 0 below no-iterations)
 	(!> sample-new-parameters)
 	(when (not (!> priors-in-range))
-	  (!> save-last-parameters)
+	  (progn
+	    (incf discarded-priors)
+	    (!> save-last-parameters))
 	  (next-iteration))
 	(for nominator = (+ (-> varying/log-of-priors)
 			    (-> varying/log-of-likelihood)))
@@ -160,6 +169,7 @@
 		   (make-instance 'mcmc-optimization-result
 				  :algorithm algorithm
 				  :no-accepted-iterations accepted-iterations
+				  :no-priors-not-in-range discarded-priors
 				  :no-iterations no-iterations
 				  :data data
 				  :input-model input-model
