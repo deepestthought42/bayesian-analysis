@@ -215,12 +215,14 @@
 		       (if args
 			   (overwrite args)))))
 	    (if overwrite-params (overwrite overwrite-params))
-	    (iter:iter
-	      (with new-object = (apply #'make-instance ',name init-args))
-	      (for s in ',(mapcar #'first parameters))
-	      (setf (slot-value new-object s)
-		    (slot-value object s))
-	      (finally (return new-object)))))))))
+	    (apply #'make-instance ',name (append overwrite-params init-args))
+	    ;; (iter:iter
+	    ;;   (with new-object = )
+	    ;;   (for s in ',(mapcar #'first parameters))
+	    ;;   (setf (slot-value new-object s)
+	    ;; 	    (slot-value object s))
+	    ;;   (finally (return new-object)))
+	    ))))))
 
 
 

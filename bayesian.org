@@ -1578,7 +1578,7 @@ seems to be really messy, so heres what I should
 *** it is working without the amplitude parameter
 which leaves me to believe that either the probability distribution is
 wrong or I need to play with the parameters more ...
-** CANCELED straight integration
+** STARTED straight integration
 meaning marginalization should also just work. The issue could be that
 I can't do the integral because double-float won't be able to hold
 numbers small enough
@@ -1686,12 +1686,12 @@ that was easy enough
 *** integration of a single parameter
 - doing this in [[file:./integration.lisp]]
 - mathematically
-  #+BEGIN_EXPORT latex 
+  
   \begin{equation}
   \label{eq:posterior-parameter}
   p \left( x | X, I) \propto p( x|I\right) \int_{x_1}^{x_2}dx p(x|I)p(D|x, X, I)
   \end{equation}
-  #+END_EXPORT
+  
 - first implementation in integrate-over
   - making use of existing likelihood/model
   - is changing the model, so this should be copied before given to
@@ -1717,6 +1717,30 @@ that was easy enough
 
 - need to keep the array of priors to actually have them for straight
   integration
+- [2017-11-24 Fri 14:03] revisiting this, since it is needed if I want
+  to compare the different models for the Rb98, the other available
+  methods are too complex to implement in the short time frame I have
+- so, the integration routine kind of works but I am not sure if it
+  actually takes into account everything 
+- for, example, I think the priors still seem to use the initial
+  min/max values of the object, not the start/end of the integration
+  range (which would be the correct values)
+- let's check this assumption 
+- yeah, the prior code closes over the numbers, not the model objects,
+  so it can't react to changes in the prior
+- this, could also explain why the double konig model compares so
+  favourable
+- so, what to do about it ?
+- first try, use a copy of the model object with the correct range
+- so, that seems to work but I am still not sure that the results are
+  correct
+- let's see if we actually change the model values, and that those
+  affect the likelihood accordingly
+- I should go search for cases I can test my code against ..
+- ok, something isn't quite right I think ... let's try to simplify
+  the code a bit and try to split integration and prior part
+- well, there actually was a mistake in the code for uniform priors ..
+- seems to work now, at least I believe it now
 ** DONE installing nlopt
 * possible optimizations
 ** TODO seperate priors in constant/varying when integrating

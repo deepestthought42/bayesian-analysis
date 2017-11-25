@@ -27,9 +27,10 @@ The given prior range is: [~f,~f]" min max)))
     (let+ ((min (get-value-of-slot/cat :min slot-name model))
 	   (max (get-value-of-slot/cat :max slot-name model))
 	   (1/max-min (coerce (/ 1 (- max min)) 'double-float)))
-      #'(lambda () 1/max-min)))
+      #'(lambda () (log 1/max-min))))
   (:method ((type (eql :certain)) model slot-name)
     #'(lambda () 0d0)))
+
 
 
 (defgeneric prior-is-constant (prior-type)

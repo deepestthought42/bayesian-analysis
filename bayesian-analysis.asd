@@ -27,6 +27,7 @@
                (:file "model")
 	       (:file "metropolis-hastings")
 	       (:file "levenberg-marquardt")
+	       (:file "integration")
 	       (:file "nlopt")
 	       (:file "fisher-information")
 	       (:file "odds")

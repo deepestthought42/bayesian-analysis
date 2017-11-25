@@ -194,6 +194,7 @@
 	(for d in binned-data)
 	(incf (car d) (- offset)))
       ;(cmd "set style fill solid 0.1 noborder")
+      (cmd "unset arrow")
       (cmd "set arrow from ~,10f,0 to ~,10f,~,10f nohead front lt 1 lw 2 lc 7"
 	   (if offset-around-median 0d0 median)
 	   (if offset-around-median 0d0 median)
