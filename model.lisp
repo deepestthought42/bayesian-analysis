@@ -215,14 +215,16 @@
 		       (if args
 			   (overwrite args)))))
 	    (if overwrite-params (overwrite overwrite-params))
-	    (apply #'make-instance ',name (append overwrite-params init-args))
-	    ;; (iter:iter
-	    ;;   (with new-object = )
-	    ;;   (for s in ',(mapcar #'first parameters))
-	    ;;   (setf (slot-value new-object s)
-	    ;; 	    (slot-value object s))
-	    ;;   (finally (return new-object)))
-	    ))))))
+	    ;;; this here has some glaring holes doesn't it ?  for
+	    ;;; example, what about the object that are computed upon
+	    ;;; initialization but are then overwritten here ... need
+	    ;;; a better protocol for this -- mmmh, actua
+	    (iter:iter
+	      (with new-object = (apply #'make-instance ',name (append overwrite-params init-args)))
+	      (for s in ',(mapcar #'first parameters))
+	      (setf (slot-value new-object s)
+	    	    (slot-value object s))
+	      (finally (return new-object)))))))))
 
 
 
