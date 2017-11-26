@@ -63,7 +63,6 @@
    #:absolute-error
    #:max-counts
    #:binned-data
-   #:calculate-odds-ratio-2/1
    #:model-parameters-to-marginalize
    #:plot-result-models
    #:input-model
@@ -71,6 +70,8 @@
    #:all-model-parameters
    #:*data-transparency*
    #:*2d-data-circle-size*
-   #:no-dimensions)
+   #:no-dimensions
+   #:calculate-marginal-posterior
+   #:odds-ratio-1/2)
   (:nicknames ba))
 
