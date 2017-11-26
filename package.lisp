@@ -72,6 +72,7 @@
    #:*2d-data-circle-size*
    #:no-dimensions
    #:calculate-marginal-posterior
-   #:odds-ratio-1/2)
+   #:odds-ratio-1/2
+   #:odds-different-data)
   (:nicknames ba))
 

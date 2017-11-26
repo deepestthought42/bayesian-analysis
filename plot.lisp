@@ -182,18 +182,24 @@
 	    (format nil "with steps title '~a'" p)))))))
 
 (defmethod plot-parameter-distribution ((result optimized-parameters) parameter
-					&key title  (offset-around-median t))
+					&key title (offset-around-median t)
+					     (fn-on-x #'identity))
   (let+ (((&slots parameter-infos) result)
-	 (param (find parameter parameter-infos :key #'name))
+	 (param (alexandria:if-let (p (find parameter parameter-infos :key #'name))
+		  p (error "Couldn't find parameter: ~a" parameter)))
 	 ((&slots binned-data median confidence-min confidence-max max-counts) param)
-	 (offset (if offset-around-median median 0d0)))
+	 (median (funcall fn-on-x median))
+	 (confidence-min (funcall fn-on-x confidence-min))
+	 (confidence-max (funcall fn-on-x confidence-max))
+	 (offset (if offset-around-median median 0d0))
+	 (binned-data
+	        (iter
+		  (for d in binned-data)
+		  (collect (list (- (funcall fn-on-x (first d)) offset)
+				 (second d))))))
     (labels ((cmd (fmt-str &rest args)
 	       (apply #'format t fmt-str args)
 	       (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-      (iter
-	(for d in binned-data)
-	(incf (car d) (- offset)))
-      ;(cmd "set style fill solid 0.1 noborder")
       (cmd "unset arrow")
       (cmd "set arrow from ~,10f,0 to ~,10f,~,10f nohead front lt 1 lw 2 lc 7"
 	   (if offset-around-median 0d0 median)
@@ -203,7 +209,7 @@
        (list
 	(mgl-gnuplot:data* (iter
 			     (for (x c) in binned-data)
-			     (if (<= (- confidence-min offset) x (- confidence-max offset))
+			     (if (<=  (- confidence-min offset) x (- confidence-max offset))
 				 (collect (list x c))))
 			   (format nil "u 1:2 with boxes lc 7 fs solid 0.3 noborder title ''"))
 	(mgl-gnuplot:data* binned-data (format nil "u 1:2 with histeps lc 0 title '~a'"

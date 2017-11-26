@@ -36,8 +36,7 @@
     (setf no-marginalized-parameters (length marginalized-parameters))))
 
 (defmethod bin-parameter-values ((result mcmc-optimization-result) parameter
-				 &key (no-bins 100) (start 0) end (confidence-level 0.69)
-				      (fn-on-x #'identity))
+				 &key (no-bins 100) (start 0) end (confidence-level 0.69))
   (let+ (((&slots iteration-accumulator) result)
 	 ((&slots marginalized-parameters parameter-array
 		  no-iterations) iteration-accumulator)
@@ -81,15 +80,14 @@
 	(finally
 	 (let+ (((&values min max)
 		 (%calculate-confidance binned no-data-points confidence-level)))
-	   (return (values (map 'list #'(lambda (n) (list (funcall fn-on-x (first n))
-						     (/ (second n) no-data-points)))
+	   (return (values (map 'list #'(lambda (n) (list (first n) (/ (second n) no-data-points)))
 				binned)
 			   median min max (/ max-counts no-data-points)))))))))
 
 
 (defmethod get-parameter-results ((result mcmc-optimization-result)
 				  &key (start 0) end (confidence-level 0.9545)
-				       (no-bins 50) (fn-on-x #'identity))
+				       (no-bins 50))
   (let+ (((&slots iteration-accumulator input-model no-iterations data) result)
 	 ((&slots model-parameters-to-marginalize) input-model)
 	 (model (copy-object input-model))
@@ -97,8 +95,7 @@
 	 (param-infos (iter
 			(for p in model-parameters-to-marginalize)
 			(for param-dist = (make-parameter-distribution result p no-bins start end
-								       confidence-level no-iterations
-								       :fn-on-x fn-on-x))
+								       confidence-level no-iterations))
 			(setf (slot-value model p) (coerce (median param-dist) 'double-float))
 			(collect param-dist))))
     (make-instance 'optimized-parameters
