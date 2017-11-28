@@ -43,6 +43,7 @@
 
 (defun integrate-over (model data parameters
 		       &key (integration-function-creator #'gsl-cffi:create-integration-function))
+  "fixme: document"
   (let+ ((model-copy (apply #'ba:copy-object model
 			    (iter
 			      (for (p start end) in parameters)
@@ -69,3 +70,13 @@
 
 
 
+(defun parameter-pdf-integrate (parameter no-bins parameters-to-marginalize model data
+				&key (integration-function-creator #'gsl-cffi:create-integration-function))
+  (let+ (((p-name begin end) parameter)
+	 (new-model (copy-object model)))
+    (iter
+      (for x from begin to end by (/ (- end begin) no-bins))
+      (setf (slot-value new-model p-name) x)
+      (collect
+	  (list x (integrate-over new-model data parameters-to-marginalize
+				  :integration-function-creator integration-function-creator))))))

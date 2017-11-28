@@ -1,3 +1,4 @@
+
 * docker stuff
 ** start container
 #+BEGIN_SRC emacs-lisp :results none
@@ -165,10 +166,10 @@ let's see how 2d fitting works with nlopt
   \begin{equation}
   \label{eq:4}
   \frac{1}{\sqrt{2\pi}\sigma}
-  \left(
-        \exp \left[-\frac{\left( T - \mu \left( \omega_{RF} \right)\right)^2}{2\sigma^2} \right]
+  \left(        
+     \exp \left[-\frac{\left( T - \mu \left( \omega_{RF} \right)\right)^2}{2\sigma^2} \right]
   + \exp \left[ -\frac{ \left( T - T_{cont}\right)^2}{2\sigma^2} \right]
-  \right)
+  \right)     
   \end{equation}
 - why does this go to zero anyway ?
 - ok, ignore datapoints that would give a likelihood of zero, then it works
