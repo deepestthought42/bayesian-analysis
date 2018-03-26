@@ -131,7 +131,7 @@
 				   :element-type 'double-float)))
 
 (defun make-initialize-after-code (class-name model-function-name parameters documentation
-				   model-prior-code no-independent-parameters 
+				   model-prior-code cached-size 
 				   f_i-name y_i-name err_i-name y_i-f_i-name y_i-f_i/err_i-name)
   `(defmethod initialize-instance :after ((object ,class-name) &rest initargs &key &allow-other-keys)
      (labels ((l-model-prior () ,(if model-prior-code model-prior-code '1d0)))
@@ -152,7 +152,7 @@
 					   'double-float)))
      (--init--priors object)
      (--init--sampling-functions object)
-     (--init--cache object ,no-independent-parameters)))
+     (--init--cache object ,cached-size)))
 
 
 (defun --acc--initialize (model no-iterations)
@@ -234,7 +234,7 @@
 
 
 
-(defmacro define-bayesian-model ((name data-type &key model-prior-code documentation) 
+(defmacro define-bayesian-model ((name data-type &key model-prior-code documentation cache-size) 
 				 (&rest model-parameters)
 				 (likelihood-type &key equal-sigma-parameter)
 				 ((&rest independent-parameters) &body model-function-body))
@@ -249,12 +249,14 @@
 	  (make-model-function-access-functions name (mapcar #'first model-parameters)
 						independent-parameters
 						model-function-body data-type))
-	 (no-independent-params (length independent-parameters)))
+	 (no-independent-params (length independent-parameters))
+	 (no-model-parameters (length model-parameters)))
 	(%check-likelihood-params likelihood-type equal-sigma-parameter)
 	`(progn
 	   ,@(make-model-class-and-coby-object name model-parameters)
 	   ,(make-initialize-after-code name model-function-name (mapcar #'first model-parameters)
-					documentation model-prior-code no-independent-params
+					documentation model-prior-code (if cache-size cache-size
+									   (+ no-independent-params no-model-parameters))
 					f_i-name y_i-name err_i-name y_i-f_i-name y_i-f_i/err_i-name)
 	   ,(make-accumulator-method name)
 	   ,model-function-code
@@ -269,5 +271,29 @@
 					 f_i-name y_i-name err_i-name
 					 y_i-f_i-name y_i-f_i/err_i-name))))
 
-
  
+(defmacro with-cached-bindings (cache-symbol
+				(&rest symbols-to-check)
+				(&rest bindings)
+				&body body)
+  (alexandria:with-gensyms (cached-the-same)
+    `(let* ((,cached-the-same (and ,@(iter
+				       (for p in symbols-to-check)
+				       (for i initially (length bindings) then (1+ i))
+				       (collect `(= (aref ,cache-symbol ,i) ,p)))))
+	    ,@(iter
+		(for b in bindings)
+		(for i initially 0 then (1+ i))
+		(collect `(,(first b) (if ,cached-the-same
+					  (aref ,cache-symbol ,i)
+					  (setf (aref ,cache-symbol ,i)
+						,(second b)))))))
+       (declare (type double-float ,@symbols-to-check))
+       (if (not ,cached-the-same)
+	   (setf ,@(iter
+		     (for p in symbols-to-check)
+		     (for i initially (length bindings) then (1+ i))
+		     (collect `(aref ,cache-symbol ,i))
+		     (collect p))))
+       (progn ,@body))))
+

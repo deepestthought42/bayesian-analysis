@@ -29,7 +29,7 @@
   (:documentation "Initialize likelihood object from model object
   MODEL and data object DATA."))
 
-(defgeneric initialize-from-source (data-type source)
+(defgeneric initialize-from-source (data-type source &key)
   (:documentation "Initialize an object of type DATA-TYPE form soure SOURCE."))
 
 (defgeneric get-all-data-slots (data-type)

@@ -93,7 +93,8 @@
 
 
 
-(defun make-parameter-distribution (result p no-bins start end confidence-level no-iterations)
+(defun make-parameter-distribution (result p no-bins start end confidence-level &optional no-iterations)
+  (declare (ignore no-iterations))
   (let+ (((&values binned-data median min max max-counts)
 	  (bin-parameter-values result p
 				:no-bins no-bins

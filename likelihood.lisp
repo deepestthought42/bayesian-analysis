@@ -24,14 +24,14 @@
 (defparameter *likelihood-types*
   '((:d_i=f_i+gaussian_error_i_unequal_sigma)
     (:d_i=f_i+gaussian_error_1_equal_sigma)
-    (:ln[p_of_x_i]=f_i_of_x_i)))
+    (:p_of_x_i=f_i_of_x_i)))
 
 
 
 (defun %check-likelihood-params (likelihood-type equal-sigma-parameter)
   (case likelihood-type
     (:d_i=f_i+gaussian_error_i_unequal_sigma)
-    (:ln[p_of_x_i]=f_i_of_x_i)
+    (:p_of_x_i=f_i_of_x_i)
     (:d_i=f_i+gaussian_error_1_equal_sigma
      (if (not equal-sigma-parameter)
 	 (error "Need to provide parameter definition for EQUAL-SIGMA-PARAMETER, 
@@ -115,8 +115,7 @@ when using :d_i=f_i+gaussian_error_1_equal_sigma type likelihood.")))))
 		 (for increment = (funcall f_i i model-object data-object))
 		 (if (> increment 0d0) 
 		     (incf Q (log increment)))
-		 (finally
-		  (return Q))))
+		 (finally (return Q))))
 	     (constant () 0d0))
       (make-instance 'likelihood
 		     :model model-object
@@ -149,7 +148,7 @@ when using :d_i=f_i+gaussian_error_1_equal_sigma type likelihood.")))))
 								    ,data-object-name
 								    ',equal-sigma-parameter
 								    #',y_i-f_i-name))
-	    (:ln[p_of_x_i]=f_i_of_x_i
+	    (:p_of_x_i=f_i_of_x_i
 	     `(create-likelihood-functions/direct-distribution ,model-object-name
 							       ,data-object-name
 							       #',f_i-name))

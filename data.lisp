@@ -106,12 +106,13 @@ of type DOUBLE-FLOAT. Parameter ~a is of type: ~a"
 
 (defun make-init-from-source-method (name init-from-source-body object-var-name
 				     source-type source-var-name
-				     all-slots)
+				     all-slots rest-of-params)
   "Internal; create initialize-from-source defmethod for datatype
 based on information given in defmacro form."
   (alexandria:with-gensyms (type)
     `(defmethod bayesian-analysis:initialize-from-source ((,type (eql ',name))
-							  (,source-var-name ,source-type))
+							  (,source-var-name ,source-type)
+							  &key ,@rest-of-params)
        (let-plus:let+ ((,object-var-name (make-instance ',name))
 		       ((let-plus:&slots ,@all-slots) ,object-var-name))
 	 (progn
@@ -165,7 +166,8 @@ dependent data slots."
 			     independent-parameters
 			     dependent-parameters
 			     error-parameters
-			     (object-var-name (source-var-name source-type))
+			     (object-var-name (source-var-name source-type)
+			      &rest key-params-to-source-fn)
 			     &body init-from-source-body)
   "Macro to define a data type to be used for likelihood calculations.
 NAME is the type of the data class.  INDEPENDENT-PARAMETERS,
@@ -206,7 +208,7 @@ automatically after INIT-FROM-SOURCE-BODY has been executed).
        ,(make-class-def name all-slots)
        ,(make-init-instance-method name all-slots all-descriptions x-slots y-slots error-slots)
        ,(make-init-from-source-method name init-from-source-body object-var-name
-				      source-type source-var-name all-slots)
+				      source-type source-var-name all-slots key-params-to-source-fn)
        ,@(make-get-parameter-names-method name all-slots x-slots y-slots error-slots))))
 
 

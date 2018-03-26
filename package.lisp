@@ -73,6 +73,7 @@
    #:no-dimensions
    #:calculate-marginal-posterior
    #:odds-ratio-1/2
-   #:odds-different-data)
+   #:odds-different-data
+   #:with-cached-bindings)
   (:nicknames ba))
 
