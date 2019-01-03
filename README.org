@@ -26,7 +26,7 @@ we load the bayesian-analysis and define a package (and directory) to work in:
 #+END_SRC
 
 define the example data and plot it:
-#+BEGIN_SRC lisp :results output file
+#+BEGIN_SRC lisp :results output file :exports both
 (in-package :bayesian-example)
 
 (defparameter example-data
