@@ -22,7 +22,7 @@ we load the bayesian-analysis and define a package (and directory) to work in:
 
 (in-package #:bayesian-example)
 
-(defparameter *dir* "/home/renee/phd/src/penning-analysis.project/bayesian-analysis/example/")
+(defparameter *dir* "/home/renee/phd/src/penning-analysis.project/bayesian-analysis/")
 #+END_SRC
 
 define the example data and plot it:
@@ -48,17 +48,17 @@ define the example data and plot it:
     (cmd "reset")
     ;; (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
     (cmd "set terminal png enhanced font 'Georgia,10' dashed")
-    (cmd "set output '~a/just-plot.png'" *dir*)
+    (cmd "set output '~a/example/just-plot.png'" *dir*)
     (mgl-gnuplot:plot*
      (list
       (mgl-gnuplot:data* example-data "with points pt 7 lc 7 title ''")
       (mgl-gnuplot:data* example-data "with histeps  lc 7 title ''"))) 
     (cmd "unset output")))
-(format t "~a/just-plot.png" *dir*)
+(format t "example/just-plot.png")
 #+END_SRC
 
 #+RESULTS:
-[[file:/home/renee/phd/src/penning-analysis.project/bayesian-analysis/example//just-plot.png]]
+[[file:example/just-plot.png]]
 
 
 
