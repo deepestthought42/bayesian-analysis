@@ -1,9 +1,11 @@
 ;;;; bayesian-analysis.asd
 
 (asdf:defsystem #:bayesian-analysis
-  :description "Describe bayesian-analysis here"
-  :author "Your Name <your.name@example.com>"
-  :license "Specify license here"
+  :description "Package to specify a model and calculate posterior distributions as well
+  as odds ratios using Bayesian statistics."
+  :author "Renee Klawitter <klawitterrenee@gmail.com>"
+  :license "Apache 2.0"
+  :version "0.0.1"
   :depends-on (#:alexandria
                #:iterate
                #:let-plus
