@@ -86,8 +86,10 @@
 	    (= (no-error-parameters data)
 	       (no-dependent-parameters data)
 	       0))
-       (mgl-gnuplot:command (format nil "set style fill transparent solid ~,2f noborder" *data-transparency*))
-       (mgl-gnuplot:command (format nil "set style circle radius ~,2f" *2d-data-circle-size*))
+       (mgl-gnuplot:command
+	(format nil "set style fill transparent solid ~,2f noborder" *data-transparency*))
+       (mgl-gnuplot:command
+	(format nil "set style circle radius ~,2f transparent solid 0.1 noborder" *2d-data-circle-size*))
        (get-plot-mgl-plot-data data
 			       (f 'independent-parameters)
 			       (cdr (slot-value data 'independent-parameters))
@@ -182,41 +184,61 @@
 	    (format nil "with steps title '~a'" p)))))))
 
 (defmethod plot-parameter-distribution ((result optimized-parameters) parameter
-					&key title (offset-around-median t)
-					     (fn-on-x #'identity))
+					&key title
+					     (offset-around-median t)
+					     (offset-around)
+					     (fn-on-x #'identity)
+					     (return-mgl-data nil)
+					
+					     (boxes-fun
+					      (constantly
+					       "u 1:2 with boxes lc 7 fs solid 0.3 noborder title ''")))
   (let+ (((&slots parameter-infos) result)
 	 (param (alexandria:if-let (p (find parameter parameter-infos :key #'name))
 		  p (error "Couldn't find parameter: ~a" parameter)))
-	 ((&slots binned-data median confidence-min confidence-max max-counts) param)
+	 ((&slots binned-data median confidence-min confidence-max max-counts
+		  absolute-error) param)
 	 (median (funcall fn-on-x median))
 	 (confidence-min (funcall fn-on-x confidence-min))
 	 (confidence-max (funcall fn-on-x confidence-max))
-	 (offset (if offset-around-median median 0d0))
+	 (offset (cond
+		   (offset-around offset-around)
+		   (offset-around-median median)
+		   (t 0d0)))
 	 (binned-data
 	        (iter
 		  (for d in binned-data)
 		  (collect (list (- (funcall fn-on-x (first d)) offset)
-				 (second d))))))
-    (labels ((cmd (fmt-str &rest args)
-	       (apply #'format t fmt-str args)
-	       (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-      (cmd "unset arrow")
-      (cmd "set arrow from ~,10f,0 to ~,10f,~,10f nohead front lt 1 lw 2 lc 7"
-	   (if offset-around-median 0d0 median)
-	   (if offset-around-median 0d0 median)
-	   (* 1.05 max-counts))
-      (mgl-gnuplot:plot*
-       (list
-	(mgl-gnuplot:data* (iter
-			     (for (x c) in binned-data)
-			     (if (<=  (- confidence-min offset) x (- confidence-max offset))
-				 (collect (list x c))))
-			   (format nil "u 1:2 with boxes lc 7 fs solid 0.3 noborder title ''"))
-	(mgl-gnuplot:data* binned-data (format nil "u 1:2 with histeps lc 0 title '~a'"
-					       (cond
-						 ((stringp title) title)
-						 ((functionp title) (funcall title median))
-						 (t (format nil "~a, median: ~,3f" parameter median))))))))))
+				 (second d)))))
+	 (mgl-data
+	  (list
+	   (mgl-gnuplot:data* (iter
+				(for (x c) in binned-data)
+				(if (<=  (- confidence-min offset) x (- confidence-max offset))
+				    (collect (list x c))))
+			      (format nil (funcall boxes-fun)))
+	   (mgl-gnuplot:data* binned-data (format nil "u 1:2 with histeps lc 0 title '~a'"
+						  (cond
+						    ((stringp title) title)
+						    ((functionp title) (funcall title median))
+						    (t (let ((digits (max 2 (1+ (ceiling
+										 (- (log median 10)))))))
+							 (format nil
+								 (format nil "~~a, median: ~~,~Df +/- ~~,~Df"
+									 digits digits)
+								 parameter median
+								 (/ (- confidence-max confidence-min) 2d0))))))))))
+    (if return-mgl-data
+	mgl-data
+	(labels ((cmd (fmt-str &rest args)
+		   (apply #'format t fmt-str args)
+		   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+	  (cmd "unset arrow")
+	  (cmd "set arrow from ~,10f,0 to ~,10f,~,10f nohead front lt 1 lw 2 lc 7"
+	       (- median offset)
+	       (- median offset)
+	       (* 1.05 max-counts))
+	  (mgl-gnuplot:plot* mgl-data)))))
 
 
 

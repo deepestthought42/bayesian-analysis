@@ -74,6 +74,9 @@
    #:calculate-marginal-posterior
    #:odds-ratio-1/2
    #:odds-different-data
-   #:with-cached-bindings)
+   #:with-cached-bindings
+   #:get-optimal-values
+   #:marginalized-parameters
+   #:parameter-infos)
   (:nicknames ba))
 

@@ -252,3 +252,16 @@
 		   :data data
 		   :model model)))
 
+
+
+(defmethod get-optimal-values ((result nlopt-result) &key only-these-params start end)
+  (declare (ignore start end))
+  (let+ (((&slots nlopt-result input-model model data) result)
+	 ((&slots model-parameters-to-marginalize) input-model)
+	 (params-to-print (if only-these-params
+			      (intersection model-parameters-to-marginalize only-these-params)
+			      model-parameters-to-marginalize)))
+    (iter
+      (for p in (sort params-to-print #'string< :key #'symbol-name))
+      (collect (cons p (slot-value model p))))))
+

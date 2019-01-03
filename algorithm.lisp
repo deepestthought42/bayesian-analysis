@@ -25,6 +25,8 @@
 
 (defgeneric bin-parameter-values (result parameter &key start end))
 (defgeneric get-parameter-results (result &key start end))
+(defgeneric get-optimal-values (result &key start end))
+
 
 (defun %calculate-confidance (array normalized-to confidance-level)
   (let+ ((sorted (sort (copy-seq array) #'> :key #'second)))

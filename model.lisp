@@ -251,25 +251,25 @@
 						model-function-body data-type))
 	 (no-independent-params (length independent-parameters))
 	 (no-model-parameters (length model-parameters)))
-	(%check-likelihood-params likelihood-type equal-sigma-parameter)
-	`(progn
-	   ,@(make-model-class-and-coby-object name model-parameters)
-	   ,(make-initialize-after-code name model-function-name (mapcar #'first model-parameters)
-					documentation model-prior-code (if cache-size cache-size
-									   (+ no-independent-params no-model-parameters))
-					f_i-name y_i-name err_i-name y_i-f_i-name y_i-f_i/err_i-name)
-	   ,(make-accumulator-method name)
-	   ,model-function-code
-	   ,f_i-code
-	   ,y_i-code
-	   ,err_i-code
-	   ,y_i-f_i-code
-	   ,y_i-f_i/err_i-code
-	   ,(make-likelihood-initializer name likelihood-type
-					 data-type
-					 (first equal-sigma-parameter)
-					 f_i-name y_i-name err_i-name
-					 y_i-f_i-name y_i-f_i/err_i-name))))
+    (%check-likelihood-params likelihood-type equal-sigma-parameter)
+    `(progn
+       ,@(make-model-class-and-coby-object name model-parameters)
+       ,(make-initialize-after-code name model-function-name (mapcar #'first model-parameters)
+				    documentation model-prior-code (if cache-size cache-size
+								       (+ no-independent-params no-model-parameters))
+				    f_i-name y_i-name err_i-name y_i-f_i-name y_i-f_i/err_i-name)
+       ,(make-accumulator-method name)
+       ,model-function-code
+       ,f_i-code
+       ,y_i-code
+       ,err_i-code
+       ,y_i-f_i-code
+       ,y_i-f_i/err_i-code
+       ,(make-likelihood-initializer name likelihood-type
+				     data-type
+				     (first equal-sigma-parameter)
+				     f_i-name y_i-name err_i-name
+				     y_i-f_i-name y_i-f_i/err_i-name))))
 
  
 (defmacro with-cached-bindings (cache-symbol
@@ -288,7 +288,9 @@
 					  (aref ,cache-symbol ,i)
 					  (setf (aref ,cache-symbol ,i)
 						,(second b)))))))
-       (declare (type double-float ,@symbols-to-check))
+       (declare (type double-float ,@symbols-to-check)
+		(type (simple-array double-float ,(+ (length symbols-to-check)
+						     (length bindings)))))
        (if (not ,cached-the-same)
 	   (setf ,@(iter
 		     (for p in symbols-to-check)
