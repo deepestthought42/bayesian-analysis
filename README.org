@@ -113,7 +113,7 @@ cast the data into a form the library understands:
 Gregory specifies two models that he compares to each other, one where we assume that
 there is *no line* in the data, and one where we assume there is a *line* with the following
 shape:
-#+BEGIN_SRC latex :results output raw graphics :file example/lineshape.png :exports result
+#+BEGIN_SRC latex :results output raw graphics :file example/lineshape.png :exports results
 \begin{equation*}
   f(\nu_i) = T\exp{\left\{ - \frac{(\nu_i-\nu_0)^{2}}{2\sigma^2_L} \right\}}
 \end{equation*}
