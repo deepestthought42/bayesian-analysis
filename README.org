@@ -36,7 +36,7 @@ the directory to work in (this needs to be adjusted for other diectory structure
 (defmacro plot ((&key file-name
 		      (terminal-options "enhanced font 'Georgia,10' dashed")
 		      ;; this seems to be a good value for github
-		      (size "960,500"))
+		      (size "900,450"))
 		(&rest other-gnuplot-commands)
 	&body data/options)
   `(labels ((cmd (fmt-str &rest args)
@@ -167,7 +167,10 @@ plot, and compare to an integrated solution:
 
 (let+ ((p-res (ba:get-parameter-results *mcmc-result* :start 2000 :no-bins 200))
        ((&slots ba:binned-data) (ba:get-parameter-info p-res 'nu-0)))
-  (plot (:file-name "example/nu0.png") ("set yrange [0:1.1]")
+  (plot (:file-name "example/nu0.png")
+      ("set yrange [0:1.1]" "set xrange [1:64]"
+       "set xlabel 'Channel #'"
+       "set ylabel 'Posterior for T [arb.]'")
     ((normalize-to-one
       (ba::parameter-pdf-integrate '(nu-0 1d0 64d0) 200 '((temperature 1d-1 5d0))
 				   (make-instance 'line)
