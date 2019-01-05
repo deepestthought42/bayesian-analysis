@@ -27,13 +27,13 @@ we load the bayesian-analysis and define a package (and directory) to work in[fn
 Then let us define a plot macro to make life a bit easier and while we are at it, define
 the directory to work in (this needs to be adjusted for other diectory structures):
 
-#+BEGIN_SRC lisp
+#+BEGIN_SRC lisp :results none
 (in-package #:bayesian-example)
 
 (defparameter *dir* "/home/renee/phd/src/penning-analysis.project/bayesian-analysis/")
 
 (defmacro plot ((&key file-name
-		      (terminal-options "enhanced font 'Georgia,8 dashed"))
+		      (terminal-options "enhanced font 'Georgia,10 dashed"))
 		(&rest other-gnuplot-commands)
 		&body data/options)
   `(labels ((cmd (fmt-str &rest args)
@@ -41,7 +41,7 @@ the directory to work in (this needs to be adjusted for other diectory structure
      (mgl-gnuplot:with-session ()
        (cmd "reset")
        ,@(if file-name
-	     `((cmd "set terminal pdf ~a" ,terminal-options)
+	     `((cmd "set terminal png ~a" ,terminal-options)
 	       (cmd "set output '~a/~a'" ,*dir* ,file-name))
 	     `((cmd "set terminal wxt ~a" ,terminal-options)))
        ,@(iter
@@ -83,7 +83,7 @@ And then plot it:
 
 (plot (:file-name "example/just-plot.png")
     ("set xlabel 'channel #'" "set ylabel 'temp. [mK]'")
-  (example-data "with points pt 7 ps 0.5 lc 7 title ''")
+  (example-data "with points pt 7 lc 7 title ''")
   (example-data "with histeps  lc 7 title ''"))
 #+END_SRC
 
