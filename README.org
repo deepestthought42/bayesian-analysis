@@ -22,12 +22,47 @@ we load the bayesian-analysis and define a package (and directory) to work in[fn
   (:use :cl :iterate :let-plus))
 
 (in-package #:bayesian-example)
-
-(defparameter *dir* "/home/renee/phd/src/penning-analysis.project/bayesian-analysis/")
 #+END_SRC
 
-define the example data and plot it:
-#+BEGIN_SRC lisp :results output file :exports both
+Then let us define a plot macro to make life a bit easier and while we are at it, define
+the directory to work in (this needs to be adjusted for other diectory structures):
+
+#+BEGIN_SRC lisp
+(in-package #:bayesian-example)
+
+(defparameter *dir* "/home/renee/phd/src/penning-analysis.project/bayesian-analysis/")
+
+(defmacro plot ((&key file-name
+		      (terminal-options "enhanced font 'Georgia,8 dashed"))
+		(&rest other-gnuplot-commands)
+		&body data/options)
+  `(labels ((cmd (fmt-str &rest args)
+	      (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+     (mgl-gnuplot:with-session ()
+       (cmd "reset")
+       ,@(if file-name
+	     `((cmd "set terminal pdf ~a" ,terminal-options)
+	       (cmd "set output '~a/~a'" ,*dir* ,file-name))
+	     `((cmd "set terminal wxt ~a" ,terminal-options)))
+       ,@(iter
+	   (for c in other-gnuplot-commands)
+	   (typecase c
+	     (string (collect `(cmd ,c)))
+	     (list (collect `(cmd ,@c)))
+	     (t (error "Do not know how to handle command: ~a" c))))
+       (mgl-gnuplot:plot*
+	(list
+	 ,@(iter
+	     (for (data opt) in data/options)
+	     (for options = (if opt opt "with lines lc 0 title ''"))
+	     (collect `(mgl-gnuplot:data* ,data ,options))))) 
+       (cmd "unset output"))
+     (format t "~a" ,file-name)))
+#+END_SRC
+
+With that, define the data given in [fn:1]:
+
+#+BEGIN_SRC lisp :results none
 (in-package :bayesian-example)
 
 (defparameter example-data
@@ -39,25 +74,21 @@ define the example data and plot it:
     (41 0.849) (42 0.171) (43 1.031) (44 1.105) (45 0.344) (46 0.087) (47 0.351) (48 1.248)
     (49 0.001) (50 0.36) (51 0.497) (52 0.072) (53 1.094) (54 1.425) (55 0.283) (56 1.526)
     (57 1.174) (58 0.558) (59 1.282) (60 0.384) (61 0.12) (62 0.187) (63 0.646) (64 0.399)))
+#+END_SRC
 
+And then plot it:
 
-(labels ((cmd (fmt-str &rest args)
-	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-  (mgl-gnuplot:with-session ()
-    (cmd "reset")
-    ;; (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
-    (cmd "set terminal png enhanced font 'Georgia,10' dashed")
-    (cmd "set output '~a/example/just-plot.png'" *dir*)
-    (mgl-gnuplot:plot*
-     (list
-      (mgl-gnuplot:data* example-data "with points pt 7 lc 7 title ''")
-      (mgl-gnuplot:data* example-data "with histeps  lc 7 title ''"))) 
-    (cmd "unset output")))
-(format t "example/just-plot.png")
+#+BEGIN_SRC lisp :results output file :exports both
+(in-package :bayesian-example)
+
+(plot (:file-name "./example/just-plot.png")
+    ("set xlabel 'channel #'" "set ylabel 'temp. [mK]'")
+  (example-data "with points pt 7 ps 0.5 lc 7 title ''")
+  (example-data "with histeps  lc 7 title ''"))
 #+END_SRC
 
 #+RESULTS:
-[[file:example/just-plot.png]]
+[[file:./example/just-plot.png]]
 
 
 ** Toy problem, model definition
