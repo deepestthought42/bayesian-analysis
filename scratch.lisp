@@ -55,7 +55,7 @@
 	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
   (mgl-gnuplot:with-session ()
     (cmd "reset")
-q    (cmd "set terminal x11 enhanced font 'Georgia,12' dashed")
+    (cmd "set terminal x11 enhanced font 'Georgia,12' dashed")
     (plot-parameter-distribution
      (get-parameter-results
       (optimize (make-instance 'metropolis-hastings :no-iterations 500000)

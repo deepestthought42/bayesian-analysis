@@ -80,9 +80,9 @@
 	(finally
 	 (let+ (((&values min max)
 		 (%calculate-confidance binned no-data-points confidence-level)))
-	   (return (values (map 'list #'(lambda (n) (list (first n) (/ (second n) no-data-points)))
+	   (return (values (map 'list #'(lambda (n) (list (first n) (/ (second n) counts)))
 				binned)
-			   median min max (/ max-counts no-data-points)))))))))
+			   median min max (/ max-counts counts)))))))))
 
 
 (defmethod get-parameter-results ((result mcmc-optimization-result)

@@ -7,7 +7,7 @@
 
 (defclass sampler ()
   ((rng :initarg :rng :accessor rng 
-	:initform (gsl-cffi:get-random-number-generator gsl-cffi::*mt19937_1999* 11))))
+	:initform (gsl-cffi:get-random-number-generator gsl-cffi::*mt19937_1999*))))
 
 (defclass gaussian-sampler (sampler)
   ((sigma :accessor sigma :initarg :sigma :initform 0.1d0)))

@@ -7,11 +7,12 @@ predominantly based on Gregory's excellent book on the topic [fn:1].
 While this library is research quality, it is good enough for my own use -- I give, of
 course, no guarantee on correctness.
 
+
 That being said, let's say you have some spectral line data (the example and questions
-here coming from Chapter 3, [fn:1]) and want to answer some questions about it. So, first
-we load the bayesian-analysis and define a package (and directory) to work in:
+here coming from Chapter 3[fn:1]) and want to answer some questions about it. So, first
+we load the bayesian-analysis and define a package (and directory) to work in[fn:2].
 
-
+** Toy problem, setup
 #+BEGIN_SRC lisp :results none
 (ql:quickload :bayesian-analysis)
 (ql:quickload :let-plus)
@@ -30,16 +31,14 @@ define the example data and plot it:
 (in-package :bayesian-example)
 
 (defparameter example-data
-  '((1 0.25) (2 0.19) (3 0.25) (4 0.56) (5 0.41) (6 0.94) (7 0.84)
-    (8 0.3) (9 2.06) (10 1.39) (11 0.07) (12 1.8) (13 1.02) (14 0.46)
-    (15 0.29) (16 0.36) (17 0.42) (18 1.43) (19 1.33) (20 0.06) (21 0.82)
-    (22 0.42) (23 3.76) (24 1.1) (25 1.31) (26 1.86) (27 0.32) (28 1.14)
-    (29 1.24) (30 0.29) (31 0.02) (32 1.52) (33 0.44) (34 0.05) (35 0.59)
-    (36 0.94) (37 0.1) (38 0.57) (39 0.4) (40 0.97) (41 2.2) (42 0.15)
-    (43 0.37) (44 0.67) (45 0.05) (46 0.2) (47 0.65) (48 1.24) (49 1.56)
-    (50 0.64) (51 0.48) (52 1.79) (53 0.07) (54 1.3) (55 0.29) (56 0.23)
-    (57 0.5) (58 0.93) (59 1.28) (60 1.98) (61 1.85) (62 0.89) (63 0.65)
-    (64 0.28)))
+  '((1 1.42) (2 0.468) (3 0.762) (4 1.312) (5 2.029) (6 0.086) (7 1.249) (8 0.368)
+    (9 0.657) (10 1.294) (11 0.235) (12 0.192) (13 0.269) (14 0.827) (15 0.685) (16 0.702)
+    (17 0.937) (18 1.331) (19 1.772) (20 0.53) (21 0.33) (22 1.205) (23 1.613) (24 0.3)
+    (25 0.046) (26 0.026) (27 0.519) (28 0.924) (29 0.23) (30 0.877) (31 0.65) (32 1.004)
+    (33 0.248) (34 1.169) (35 0.915) (36 1.113) (37 1.463) (38 2.732) (39 0.571) (40 0.865)
+    (41 0.849) (42 0.171) (43 1.031) (44 1.105) (45 0.344) (46 0.087) (47 0.351) (48 1.248)
+    (49 0.001) (50 0.36) (51 0.497) (52 0.072) (53 1.094) (54 1.425) (55 0.283) (56 1.526)
+    (57 1.174) (58 0.558) (59 1.282) (60 0.384) (61 0.12) (62 0.187) (63 0.646) (64 0.399)))
 
 
 (labels ((cmd (fmt-str &rest args)
@@ -61,13 +60,110 @@ define the example data and plot it:
 [[file:example/just-plot.png]]
 
 
+** Toy problem, model definition
+#+BEGIN_SRC lisp
+(in-package :bayesian-example)
+(use-package :infix-math)
+
+(ba:define-data-class toy-data (ch "channel number") (mK "temperature") ()
+    (obj (source t))
+  (let ((dim (length example-data)))
+    (setf ch (make-array dim :element-type 'double-float)
+	  mK (make-array dim :element-type 'double-float))
+    (iter
+      (for (x y) in-sequence example-data with-index i)
+      (setf (aref ch i) (coerce x 'double-float)
+	    (aref mK i) (coerce y 'double-float)))))
 
 
 
-want to answer
+(ba:define-bayesian-model (no-line toy-data) ()
+    (:d_i=f_i+gaussian_error_1_equal_sigma
+     :equal-sigma-parameter (sigma :default 1d0))
+    ((x) 0d0))
 
+(ba:define-bayesian-model (line toy-data)
+    ((temperature :default 2d0 :prior :jeffreys :marginalize t :min 5d-2 :max 100d0 :sample-sigma 0.5d0)
+     (nu-0 :default 40d0 :prior :uniform :marginalize t :min 1 :max 64 :sample-sigma 2.5d0)
+     (sigma-l :default #.(/ 2 (log 2)) :prior :jeffreys :marginalize nil :min 0.5 :max 2))
+    (:d_i=f_i+gaussian_error_1_equal_sigma :equal-sigma-parameter (sigma :default 1d0 :marginalize nil))
+    ((nu) ($ temperature * (exp (- (nu - nu-0) ^ 2 / (2 * sigma-l ^ 2))))))
+
+
+
+(defparameter *mcmc-result* (ba:find-optimum (make-instance 'ba:metropolis-hastings :no-iterations 500000)
+					     (make-instance 'line)
+					     (ba:initialize-from-source 'toy-data t)))
+
+
+(let+ ((p-res (ba:get-parameter-results *mcmc-result* :confidence-level 0.1 :start 2000 :no-bins 200))
+       ((&slots ba:binned-data) (ba:get-parameter-info p-res 'temperature)))
+  (labels ((cmd (fmt-str &rest args)
+	     (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+    (mgl-gnuplot:with-session ()
+      (cmd "reset")
+      (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+      (mgl-gnuplot:plot*
+       (list (mgl-gnuplot:data* ba:binned-data "with histeps lc 0")
+	     (mgl-gnuplot:data*
+	      (ba::parameter-pdf-integrate '(temperature 1d-1 5d0) 200 '((nu-0 1d0 64d0))
+					   (make-instance 'line)
+					   (ba:initialize-from-source 'toy-data t)
+					   :normalize t)
+	 "with lines lc 0 dt 2 title 'Jeffreys prior'")))
+      (cmd "unset output"))))
+
+
+
+
+
+(labels ((cmd (fmt-str &rest args)
+	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+  (mgl-gnuplot:with-session ()
+    (cmd "reset")
+    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+    (ba:plot-iteration-values
+     (ba:find-optimum (make-instance 'ba:metropolis-hastings :no-iterations 100000)
+		      (make-instance 'line)
+		      (ba:initialize-from-source 'toy-data t))
+     :every 20 :params-to-plot '(temperature)
+     :other-plot-options "lc 0")
+    (cmd "unset output")))
+
+
+
+
+(let ((data (ba:initialize-from-source 'toy-data t)))
+  (labels ((cmd (fmt-str &rest args)
+	     (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+    (mgl-gnuplot:with-session ()
+      (cmd "reset")
+      (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+      (mgl-gnuplot:plot*
+       (list
+	
+	(mgl-gnuplot:data*
+	 (ba::parameter-pdf-integrate ;; '(nu-0 1d0 64d0) 200 '((temperature 1d-1 10d0))
+	  '(temperature 1d-1 5d0) 200 '((nu-0 1d0 64d0))
+	  (make-instance 'line :temperature-prior :uniform)
+	  
+	  :normalize t)
+	 "with lines lc 0 dt 1 title 'Uniform prior'"))) 
+      (cmd "unset output"))))
+
+
+
+
+
+
+
+#+END_SRC
 
 * Footnotes
 [fn:1] /Bayesian Logical Data Analysis for the Physical Sciences/, Cambridge University
   Press, 2005, https://doi.org/10.1017/CBO9780511791277
+
+[fn:2] Within a properly setup emacs + slime or sly, and given that quicklisp knows about
+bayesian-analysis using for example https://github.com/deepestthought42/with-project-dir,
+this org-mode file can be executed directly
 

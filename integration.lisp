@@ -33,10 +33,7 @@
       (for (p) in-sequence parameters with-index i)
       (setf (aref arr i)
 	    (get-prior-for-parameter model p)))
-    #'(lambda ()
-	(iter
-	  (for i from 0 below no-params)
-	  (sum (funcall (aref arr i)))))))
+    #'(lambda () (iter (for i from 0 below no-params) (sum (funcall (aref arr i)))))))
 
 
 
@@ -61,22 +58,30 @@
       (for fun initially #'(lambda () (exp
 				  (+ (funcall ln-of-joint-prior)
 				     (funcall varying/log-of-likelihood))))
+	   ;; get-integration-fun-for-parameter creates a recursive integration function
 	   then (get-integration-fun-for-parameter p start end model-copy fun integration-function-creator))
-      (finally
-       (return (* (exp (funcall constant/log-of-likelihood))
-		  (funcall fun)))))))
+      (finally (return (* (exp (funcall constant/log-of-likelihood)) (funcall fun)))))))
 
 
 
 
 
 (defun parameter-pdf-integrate (parameter no-bins parameters-to-marginalize model data
-				&key (integration-function-creator #'gsl-cffi:create-integration-function))
+				&key (integration-function-creator #'gsl-cffi:create-integration-function)
+				     normalize)
   (let+ (((p-name begin end) parameter)
-	 (new-model (copy-object model)))
+	 (new-model (copy-object model))
+	 (log-prior (get-prior-for-parameter new-model p-name)))
     (iter
       (for x from begin to end by (/ (- end begin) no-bins))
       (setf (slot-value new-model p-name) x)
-      (collect
-	  (list x (integrate-over new-model data parameters-to-marginalize
-				  :integration-function-creator integration-function-creator))))))
+      (for int = (* 
+		  (exp (funcall log-prior))
+		  (integrate-over new-model data parameters-to-marginalize
+				  :integration-function-creator integration-function-creator)))
+      (sum int into integral)
+      (collect (list x int) into vals)
+      (finally
+	  (return (if normalize
+		      (mapcar #'(lambda (x/y) (list (first x/y) (/ (second x/y) integral))) vals)
+		      vals))))))

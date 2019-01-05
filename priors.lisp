@@ -21,8 +21,7 @@
 		 (format nil "Jeffrey priors are only applicable to (non-negative) scale parameters. 
 The given prior range is: [~f,~f]" min max)))
       (let+ ((ln-max/min (coerce (log (/ max min)) 'double-float)))
-	#'(lambda ()
-	    (log (/ 1 (* (slot-value model slot-name) ln-max/min)))))))
+	#'(lambda () (log (/ 1 (* (slot-value model slot-name) ln-max/min)))))))
   (:method ((type (eql :uniform)) model slot-name)
     (let+ ((min (get-value-of-slot/cat :min slot-name model))
 	   (max (get-value-of-slot/cat :max slot-name model))

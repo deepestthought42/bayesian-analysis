@@ -164,8 +164,10 @@
 
 
 
+
 (defmethod plot-iteration-values ((result mcmc-optimization-result)
-				  &key (params-to-plot) (start 0) (end) (every 1))
+				  &key (params-to-plot) (start 0) (end) (every 1)
+				       (other-plot-options ""))
   (let+ (((&slots iteration-accumulator) result)
 	 ((&slots marginalized-parameters parameter-array no-iterations) iteration-accumulator)
 	 (end (if end end no-iterations)))
@@ -180,8 +182,8 @@
 	    (iter
 	      (for i from start below end)
 	      (if (= (mod i every) 0)
-	       (collect (list i (aref parameter-array index-param i)))))
-	    (format nil "with steps title '~a'" p)))))))
+		  (collect (list i (aref parameter-array index-param i)))))
+	    (format nil "with steps ~a title '~a'" other-plot-options p)))))))
 
 (defmethod plot-parameter-distribution ((result optimized-parameters) parameter
 					&key title
@@ -189,15 +191,11 @@
 					     (offset-around)
 					     (fn-on-x #'identity)
 					     (return-mgl-data nil)
-					
 					     (boxes-fun
 					      (constantly
 					       "u 1:2 with boxes lc 7 fs solid 0.3 noborder title ''")))
-  (let+ (((&slots parameter-infos) result)
-	 (param (alexandria:if-let (p (find parameter parameter-infos :key #'name))
-		  p (error "Couldn't find parameter: ~a" parameter)))
-	 ((&slots binned-data median confidence-min confidence-max max-counts
-		  absolute-error) param)
+  (let+ ((parameter-info (get-parameter-infos result parameter))
+	 ((&slots binned-data median confidence-min confidence-max max-counts absolute-error) parameter-info)
 	 (median (funcall fn-on-x median))
 	 (confidence-min (funcall fn-on-x confidence-min))
 	 (confidence-max (funcall fn-on-x confidence-max))

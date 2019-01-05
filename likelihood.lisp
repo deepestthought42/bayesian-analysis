@@ -4,7 +4,8 @@
 
 
 (defclass likelihood ()
-  ((constant/log-of-likelihood :accessor constant/log-of-likelihood :initarg
+  (
+   (constant/log-of-likelihood :accessor constant/log-of-likelihood :initarg
 			       :constant/log-of-likelihood
 			       :initform (constantly 0d0))
    (varying/log-of-likelihood :accessor varying/log-of-likelihood :initarg :varying/log-of-likelihood
@@ -80,7 +81,8 @@ when using :d_i=f_i+gaussian_error_1_equal_sigma type likelihood.")))))
     (labels ((varying ()
 	       (iter
 		 (declare (type fixnum i no-data-points)
-			  (type (double-float 0d0) Q d_i-y_i)
+			  (type (double-float 0d0) Q)
+			  (type double-float d_i-y_i) 
 			  (type (function (fixnum t t) double-float) y_i-f_i))
 		 (with Q = 0d0)
 		 (for i from 0 below no-data-points)
@@ -94,7 +96,7 @@ when using :d_i=f_i+gaussian_error_1_equal_sigma type likelihood.")))))
 		    (return (- (+ (* N (log sigma)) (/ Q (* 2d0 sigma sigma)))))))))
 	     (constant ()
 	       (declare (type (double-float 0d0) N))
-	       (expt (* 2d0 pi) (/ N 2d0))))
+	       (log (expt (* 2d0 pi) (- (/ N 2d0))))))
       (make-instance 'likelihood
 		     :model model-object
 		     :data data-object
