@@ -8,11 +8,11 @@ While this library is research quality, it is good enough for my own use -- I gi
 course, no guarantee on correctness.
 
 
-That being said, let's say you have some spectral line data (the example and questions
-here coming from Chapter 3[fn:1]) and want to answer some questions about it. So, first
-we load the bayesian-analysis and define a package (and directory) to work in[fn:2].
-
 ** Toy problem, setup
+That being said, let's say you have some spectral line data (the example and questions
+here coming from Chapter 3 [fn:1]) and want to answer some questions about it. So, first
+we load the bayesian-analysis and define a package (and directory) to work in [fn:2].
+
 #+BEGIN_SRC lisp :results none
 (ql:quickload :bayesian-analysis)
 (ql:quickload :let-plus)
@@ -35,7 +35,8 @@ the directory to work in (this needs to be adjusted for other diectory structure
 
 (defmacro plot ((&key file-name
 		      (terminal-options "enhanced font 'Georgia,10' dashed")
-		      (size "800,400"))
+		      ;; this seems to be a good value for github
+		      (size "960,500"))
 		(&rest other-gnuplot-commands)
 	&body data/options)
   `(labels ((cmd (fmt-str &rest args)
@@ -86,17 +87,17 @@ And then plot it:
 (plot (:file-name "example/just-plot.png")
     ("set xlabel 'channel #'" "set ylabel 'temp. [mK]'" "set xrange [1:64]")
   (example-data "with points pt 7 lc 7 title ''")
-  (example-data "with histeps  lc 7 title ''"))
+  (example-data "with histeps lc 7 title ''"))
 #+END_SRC
 
 #+RESULTS:
 [[file:example/just-plot.png]]
 
+Ok, looks good. To do some analysis on it with the /bayesian-analysis/ package, we need to
+cast the data into a form the library understands:
 
-** Toy problem, model definition
-#+BEGIN_SRC lisp
+#+BEGIN_SRC lisp :results none
 (in-package :bayesian-example)
-(use-package :infix-math)
 
 (ba:define-data-class toy-data (ch "channel number") (mK "temperature") ()
     (obj (source t))
@@ -105,9 +106,22 @@ And then plot it:
 	  mK (make-array dim :element-type 'double-float))
     (iter
       (for (x y) in-sequence example-data with-index i)
-      (setf (aref ch i) (coerce x 'double-float)
-	    (aref mK i) (coerce y 'double-float)))))
+      (setf (aref ch i) (coerce x 'double-float) (aref mK i) (coerce y 'double-float)))))
+#+END_SRC
 
+** Toy problem, model definition
+Gregory specifies two models that he compares to each other, one where we assume that
+there is *no line* in the data, and one where we assume there is a *line* with the following
+shape:
+
+\begin{equation*}
+  f(\nu_i) = T\exp{\left\{ - \frac{(\nu_i-\nu_0)^{2}}{2\sigma^2_L} \right\}}
+\end{equation*}
+
+
+#+BEGIN_SRC lisp
+(in-package :bayesian-example)
+(use-package :infix-math)
 
 
 (ba:define-bayesian-model (no-line toy-data) ()
