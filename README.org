@@ -17,6 +17,7 @@ we load the bayesian-analysis and define a package (and directory) to work in[fn
 (ql:quickload :bayesian-analysis)
 (ql:quickload :let-plus)
 (ql:quickload :iterate)
+(ql:quickload :infix-math)
 
 (defpackage #:bayesian-example
   (:use :cl :iterate :let-plus))
@@ -33,16 +34,17 @@ the directory to work in (this needs to be adjusted for other diectory structure
 (defparameter *dir* "/home/renee/phd/src/penning-analysis.project/bayesian-analysis/")
 
 (defmacro plot ((&key file-name
-		      (terminal-options "enhanced font 'Georgia,10 dashed"))
+		      (terminal-options "enhanced font 'Georgia,10' dashed")
+		      (size "800,400"))
 		(&rest other-gnuplot-commands)
-		&body data/options)
+	&body data/options)
   `(labels ((cmd (fmt-str &rest args)
 	      (mgl-gnuplot:command (apply #'format nil fmt-str args))))
      (mgl-gnuplot:with-session ()
        (cmd "reset")
        ,@(if file-name
-	     `((cmd "set terminal png ~a" ,terminal-options)
-	       (cmd "set output '~a/~a'" ,*dir* ,file-name))
+	     `((cmd "set output '~a/~a'" ,*dir* ,file-name)
+	       (cmd "set terminal png size ~a ~a" ,size ,terminal-options))
 	     `((cmd "set terminal wxt ~a" ,terminal-options)))
        ,@(iter
 	   (for c in other-gnuplot-commands)
@@ -82,7 +84,7 @@ And then plot it:
 (in-package :bayesian-example)
 
 (plot (:file-name "example/just-plot.png")
-    ("set xlabel 'channel #'" "set ylabel 'temp. [mK]'")
+    ("set xlabel 'channel #'" "set ylabel 'temp. [mK]'" "set xrange [1:64]")
   (example-data "with points pt 7 lc 7 title ''")
   (example-data "with histeps  lc 7 title ''"))
 #+END_SRC
