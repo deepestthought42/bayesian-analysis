@@ -81,14 +81,14 @@ And then plot it:
 #+BEGIN_SRC lisp :results output file :exports both
 (in-package :bayesian-example)
 
-(plot (:file-name "./example/just-plot.png")
+(plot (:file-name "example/just-plot.png")
     ("set xlabel 'channel #'" "set ylabel 'temp. [mK]'")
   (example-data "with points pt 7 ps 0.5 lc 7 title ''")
   (example-data "with histeps  lc 7 title ''"))
 #+END_SRC
 
 #+RESULTS:
-[[file:./example/just-plot.png]]
+[[file:example/just-plot.png]]
 
 
 ** Toy problem, model definition
