@@ -127,9 +127,9 @@ shape:
 #+RESULTS:
 [[file:example/lineshape.png]]
 
-Where it is assumed that the line has a width of $\sigma_L=\SI{2}{ch}$ and the line is
-predicted to appear in the spectrum at around $\nu_0=37$. Furthermore, all channel have
-Gaussian noise specified to have $\sigma = \SI{1}{mK}$.
+Where it is assumed that the line has a width of \sigma_L=2ch and the line is
+predicted to appear in the spectrum at around \nu_0=37. Furthermore, all channel have
+Gaussian noise specified to have \sigma = 1mK.
 
 To express these two models using /bayesian-analysis/, we simply write:
 #+BEGIN_SRC lisp :results none :in-package :bayesian-example
@@ -143,12 +143,12 @@ To express these two models using /bayesian-analysis/, we simply write:
     ((νᵢ) ($ Τ * (exp (- (νᵢ - ν₀) ^ 2 / (2 * σₗ ^ 2))))))
     #+END_SRC
 
-The model definition also already specified a choice and range of priors. Here $T$ is a
+The model definition also already specified a choice and range of priors. Here T is a
 scale parameter and best described using a Jeffreys prior (see below). By default
-parameters $T, \nu_0$ are marginalized over. The defintion of the model also specifies
+parameters T, \nu_0 are marginalized over. The defintion of the model also specifies
 default values for the MCMC samplers. All of the parameters and default values can be
 overwritten when instanciating the model. We also specifiy that all data has an error that
-follows a gaussian distribution (/:d_i=f_i+gaussian_error_1_equal_sigma/) with $\sigma=1$.
+follows a gaussian distribution (/:d_i=f_i+gaussian_error_1_equal_sigma/) with \sigma=1.
 
 ** Toy problem, analysis
 and with that, we can first find an optimal solution using MCMC:
