@@ -9,10 +9,10 @@ While this library is research quality, it is good enough for my own use -- I gi
 course, no guarantee on correctness.
 
 ** Toy problem, setup
-That being said, let's say you have some spectral line data (the example here is a copy
-from [fn:1]) and want to answer some questions about it. So, first we load
-/bayesian-analysis/ and define a package (and directory, this needs to be adjusted for other
-diectory structures) to work in [fn:2].
+That being said, let's say you have some spectral line data (this problem is a slightly
+changed copy of a problem from [fn:1], Chapter 3) and want to answer some questions about
+it. So, first we load /bayesian-analysis/ and define a package (and directory, this needs to
+be adjusted for other diectory structures) to work in [fn:2].
 
 #+BEGIN_SRC lisp :results none
 (ql:quickload :bayesian-analysis)
@@ -127,21 +127,28 @@ shape:
 #+RESULTS:
 [[file:example/lineshape.png]]
 
-Where it is assumed 
+Where it is assumed that the line has a width of $\sigma_L=\SI{2}{ch}$ and the line is
+predicted to appear in the spectrum at around $\nu_0=37$. Furthermore, all channel have
+Gaussian noise specified to have $\sigma = \SI{1}{mK}$.
 
 To express these two models using /bayesian-analysis/, we simply write:
 #+BEGIN_SRC lisp :results none :in-package :bayesian-example
 (use-package :infix-math)
 
 (ba:define-bayesian-model (line toy-data)
-    ((Ⲧ :default 2d0 :prior :jeffreys :marginalize t :min 5d-2 :max 100d0 :sample-sigma 0.5d0)
-     (ν₀ :default 40d0 :prior :uniform :marginalize t :min 1 :max 64 :sample-sigma 2.5d0)
+    ((Τ :default 2 :prior :jeffreys :marginalize t :min 5e-2 :max 100 :sample-sigma 0.5)
+     (ν₀ :default 37 :prior :uniform :marginalize t :min 1 :max 64 :sample-sigma 2.5)
      (σₗ :default (/ 2 (log 2))))
-    (:d_i=f_i+gaussian_error_1_equal_sigma :equal-sigma-parameter (sigma :default 1d0))
-    ((ν) ($ Ⲧ * (exp (- (ν - ν₀) ^ 2 / (2 * σₗ ^ 2))))))
-#+END_SRC
+    (:d_i=f_i+gaussian_error_1_equal_sigma :equal-sigma-parameter (sigma :default 1))
+    ((νᵢ) ($ Τ * (exp (- (νᵢ - ν₀) ^ 2 / (2 * σₗ ^ 2))))))
+    #+END_SRC
 
-
+The model definition also already specified a choice and range of priors. Here $T$ is a
+scale parameter and best described using a Jeffreys prior (see below). By default
+parameters $T, \nu_0$ are marginalized over. The defintion of the model also specifies
+default values for the MCMC samplers. All of the parameters and default values can be
+overwritten when instanciating the model. We also specifiy that all data has an error that
+follows a gaussian distribution (/:d_i=f_i+gaussian_error_1_equal_sigma/) with $\sigma=1$.
 
 ** Toy problem, analysis
 and with that, we can first find an optimal solution using MCMC:
@@ -164,24 +171,18 @@ plot, and compare to an integrated solution:
 (in-package :bayesian-example)
 
 (let+ ((p-res (ba:get-parameter-results *mcmc-result* :start 2000 :no-bins 200))
-       ((&slots ba:binned-data) (ba:get-parameter-info p-res 'nu-0)))
+       ((&slots ba:binned-data) (ba:get-parameter-info p-res 'ν₀)))
   (plot (:file-name "example/nu0.png")
       ("set yrange [0:1.1]" "set xrange [1:64]"
        "set xlabel 'Channel #'"
        "set ylabel 'Posterior for T [arb.]'")
     ((normalize-to-one
-      (ba::parameter-pdf-integrate '(ν₀ 1d0 64d0) 200 '((temperature 1d-1 5d0))
+      (ba::parameter-pdf-integrate '(ν₀ 1d0 64d0) 200 '((Ⲧ 1d-1 5d0))
 				   (make-instance 'line)
 				   (ba:initialize-from-source 'toy-data example-data)
 				   :normalize t))
      "with lines lc 7 lw 2 dt 1 title 'Integrated result'")
     ((normalize-to-one ba:binned-data) "with histeps lc 0 title 'MCMC result'")))
-
-(ba:define-bayesian-model (no-line toy-data) ()
-    (:d_i=f_i+gaussian_error_1_equal_sigma
-     :equal-sigma-parameter (sigma :default 1d0))
-    ((x) 0d0))
-
 #+END_SRC
 
 #+RESULTS:
@@ -251,6 +252,12 @@ plot, and compare to an integrated solution:
 
 
 #+END_SRC
+
+
+(ba:define-bayesian-model (no-line toy-data) ()
+    (:d_i=f_i+gaussian_error_1_equal_sigma
+     :equal-sigma-parameter (sigma :default 1d0))
+    ((x) 0d0))
 
 * Footnotes
 [fn:1] /Bayesian Logical Data Analysis for the Physical Sciences/, Cambridge University
