@@ -1,17 +1,18 @@
 * Bayesian Analysis
 This is a lisp package to specify a model and calculate posterior distributions as well as
-odds ratios using Bayesian statistics, specifically a simple Metropolis-Hastings. It is
-predominantly based on Gregory's excellent book on the topic [fn:1].
+odds ratios using Bayesian statistics, most notably a simple implementation of the
+Metropolis-Hastings algorithm. It is based on Gregory's excellent book on the topic [fn:1]
+of Bayesian data analysis.
 
 
 While this library is research quality, it is good enough for my own use -- I give, of
 course, no guarantee on correctness.
 
-
 ** Toy problem, setup
-That being said, let's say you have some spectral line data (the example and questions
-here coming from Chapter 3 [fn:1]) and want to answer some questions about it. So, first
-we load the bayesian-analysis and define a package (and directory) to work in [fn:2].
+That being said, let's say you have some spectral line data (the example here is a copy
+from [fn:1]) and want to answer some questions about it. So, first we load
+/bayesian-analysis/ and define a package (and directory, this needs to be adjusted for other
+diectory structures) to work in [fn:2].
 
 #+BEGIN_SRC lisp :results none
 (ql:quickload :bayesian-analysis)
@@ -23,20 +24,19 @@ we load the bayesian-analysis and define a package (and directory) to work in [f
   (:use :cl :iterate :let-plus))
 
 (in-package #:bayesian-example)
+
+;; set to my copy of the repository to be able to easily create this document (mainly the
+;; plots)
+(defparameter *dir* "/home/renee/phd/src/penning-analysis.project/bayesian-analysis/")
 #+END_SRC
 
-Then let us define a plot macro to make life a bit easier and while we are at it, define
-the directory to work in (this needs to be adjusted for other diectory structures):
+Then let us define a plot macro to make life a bit easier:
 
-#+BEGIN_SRC lisp :results none
-(in-package #:bayesian-example)
-
-(defparameter *dir* "/home/renee/phd/src/penning-analysis.project/bayesian-analysis/")
-
+#+BEGIN_SRC lisp :results none :in-package :bayesian-example
 (defmacro plot ((&key file-name
 		      (terminal-options "enhanced font 'Georgia,10' dashed")
 		      ;; this seems to be a good value for github
-		      (size "900,450"))
+		      (size "860,450"))
 		(&rest other-gnuplot-commands)
 	&body data/options)
   `(labels ((cmd (fmt-str &rest args)
@@ -65,13 +65,12 @@ the directory to work in (this needs to be adjusted for other diectory structure
 (defun normalize-to-one (x/y-s)
   (let+ ((max (reduce #'max x/y-s :key #'second)))
     (mapcar #'(lambda (x/y) (list (first x/y) (/ (second x/y) max))) x/y-s)))
+
 #+END_SRC
 
 With that, define the data given in [fn:1]:
 
-#+BEGIN_SRC lisp :results none
-(in-package :bayesian-example)
-
+#+BEGIN_SRC lisp :results none :in-package :bayesian-example
 (defparameter example-data
   '((1 1.42) (2 0.468) (3 0.762) (4 1.312) (5 2.029) (6 0.086) (7 1.249) (8 0.368)
     (9 0.657) (10 1.294) (11 0.235) (12 0.192) (13 0.269) (14 0.827) (15 0.685) (16 0.702)
@@ -100,18 +99,20 @@ And then plot it:
 Ok, looks good. To do some analysis on it with the /bayesian-analysis/ package, we need to
 cast the data into a form the library understands:
 
-#+BEGIN_SRC lisp :results none
-(in-package :bayesian-example)
-
-(ba:define-data-class toy-data (ch "channel number") (mK "temperature") ()
-    (obj (source t))
-  (let ((dim (length example-data)))
+#+BEGIN_SRC lisp :results none :package :bayesian-example
+(ba:define-data-class toy-data (ch "channel number") (mK "temperature") () (obj (source list))
+  (let ((dim (length source)))
     (setf ch (make-array dim :element-type 'double-float)
 	  mK (make-array dim :element-type 'double-float))
     (iter
-      (for (x y) in-sequence example-data with-index i)
-      (setf (aref ch i) (coerce x 'double-float) (aref mK i) (coerce y 'double-float)))))
+      (for (x y) in-sequence source with-index i)
+      (setf (aref ch i) (coerce x 'double-float)
+	    (aref mK i) (coerce y 'double-float)))))
 #+END_SRC
+
+/ba:define-data-class/ is a convenience macro that defines a subclass of /ba:data/ and the
+methods (interface in OOP parlance) necessary to use it - specifically a method to
+initialize an object of type /toy-data/ from a simple list of the form /{x, y}*/.
 
 ** Toy problem, model definition
 Gregory specifies two models that he compares to each other, one where we assume that
@@ -126,26 +127,23 @@ shape:
 #+RESULTS:
 [[file:example/lineshape.png]]
 
+Where it is assumed 
+
 To express these two models using /bayesian-analysis/, we simply write:
-#+BEGIN_SRC lisp :results none
-(in-package :bayesian-example)
+#+BEGIN_SRC lisp :results none :in-package :bayesian-example
 (use-package :infix-math)
 
-(ba:define-bayesian-model (no-line toy-data) ()
-    (:d_i=f_i+gaussian_error_1_equal_sigma
-     :equal-sigma-parameter (sigma :default 1d0))
-    ((x) 0d0))
-
 (ba:define-bayesian-model (line toy-data)
-    ((temperature :default 2d0 :prior :jeffreys :marginalize t :min 5d-2 :max 100d0 :sample-sigma 0.5d0)
-     (nu-0 :default 40d0 :prior :uniform :marginalize t :min 1 :max 64 :sample-sigma 2.5d0)
-     (sigma-l :default #.(/ 2 (log 2))))
-    (:d_i=f_i+gaussian_error_1_equal_sigma
-     :equal-sigma-parameter (sigma :default 1d0 :marginalize nil))
-    ((nu)
-      ($ temperature * (exp (- (nu - nu-0) ^ 2 / (2 * sigma-l ^ 2))))))
+    ((Ⲧ :default 2d0 :prior :jeffreys :marginalize t :min 5d-2 :max 100d0 :sample-sigma 0.5d0)
+     (ν₀ :default 40d0 :prior :uniform :marginalize t :min 1 :max 64 :sample-sigma 2.5d0)
+     (σₗ :default (/ 2 (log 2))))
+    (:d_i=f_i+gaussian_error_1_equal_sigma :equal-sigma-parameter (sigma :default 1d0))
+    ((ν) ($ Ⲧ * (exp (- (ν - ν₀) ^ 2 / (2 * σₗ ^ 2))))))
 #+END_SRC
 
+
+
+** Toy problem, analysis
 and with that, we can first find an optimal solution using MCMC:
 #+BEGIN_SRC lisp :results none
 (in-package :bayesian-example)
@@ -172,12 +170,18 @@ plot, and compare to an integrated solution:
        "set xlabel 'Channel #'"
        "set ylabel 'Posterior for T [arb.]'")
     ((normalize-to-one
-      (ba::parameter-pdf-integrate '(nu-0 1d0 64d0) 200 '((temperature 1d-1 5d0))
+      (ba::parameter-pdf-integrate '(ν₀ 1d0 64d0) 200 '((temperature 1d-1 5d0))
 				   (make-instance 'line)
-				   (ba:initialize-from-source 'toy-data t)
+				   (ba:initialize-from-source 'toy-data example-data)
 				   :normalize t))
      "with lines lc 7 lw 2 dt 1 title 'Integrated result'")
     ((normalize-to-one ba:binned-data) "with histeps lc 0 title 'MCMC result'")))
+
+(ba:define-bayesian-model (no-line toy-data) ()
+    (:d_i=f_i+gaussian_error_1_equal_sigma
+     :equal-sigma-parameter (sigma :default 1d0))
+    ((x) 0d0))
+
 #+END_SRC
 
 #+RESULTS:
@@ -194,14 +198,14 @@ plot, and compare to an integrated solution:
 	(ba:get-parameter-info p-res-uniform 'temperature)))
   (plot () ("set yrange [0:1.1]")
     ((normalize-to-one
-      (ba::parameter-pdf-integrate '(temperature 1d-1 5d0) 200 '((nu-0 1d0 64d0))
+      (ba::parameter-pdf-integrate '(temperature 1d-1 5d0) 200 '((ν₀ 1d0 64d0))
 				   (make-instance 'line)
 				   (ba:initialize-from-source 'toy-data t)
 				   :normalize t))
      "with lines lc 7 lw 2 dt 1 title 'Integrated result'")
     ((normalize-to-one ba:binned-data) "with histeps lc 0 title 'MCMC result'")
     ((normalize-to-one
-      (ba::parameter-pdf-integrate '(temperature 1d-1 5d0) 200 '((nu-0 1d0 64d0))
+      (ba::parameter-pdf-integrate '(temperature 1d-1 5d0) 200 '((ν₀ 1d0 64d0))
 				   (make-instance 'line :temperature-prior :uniform)
 				   (ba:initialize-from-source 'toy-data t)
 				   :normalize t))
@@ -234,7 +238,7 @@ plot, and compare to an integrated solution:
 (let+ ((data (ba:initialize-from-source 'toy-data t))
        (model (make-instance 'line)))
   (plot () ()
-    ((ba::parameter-pdf-integrate '(temperature 1d-1 5d0) 200 '((nu-0 1d0 64d0))
+    ((ba::parameter-pdf-integrate '(temperature 1d-1 5d0) 200 '((ν₀ 1d0 64d0))
 				  model data :normalize t)
      "with lines lc 0 dt 1 title 'Uniform prior'")))
 

@@ -96,7 +96,7 @@
 	     (if (not use-default)
 		 `(error ,(format nil "No value known for parameter: ~a" name))
 		 (if coerce
-		     `,(coerce default-value 'double-float)
+		     `(coerce ,default-value 'double-float)
 		     `,default-value)))
 	   (n (cat &key is-key)
 	     (w/suffix-slot-category cat name :is-key is-key))
