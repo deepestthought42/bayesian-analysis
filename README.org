@@ -30,45 +30,8 @@ be adjusted for other diectory structures) to work in [fn:2].
 (defparameter *dir* "/home/renee/phd/src/penning-analysis.project/bayesian-analysis/")
 #+END_SRC
 
-Then let us define a plot macro to make life a bit easier:
 
-#+BEGIN_SRC lisp :results none :in-package :bayesian-example
-(defmacro plot ((&key file-name
-		      (terminal-options "enhanced font 'Georgia,10' dashed")
-		      ;; this seems to be a good value for github
-		      (size "860,450"))
-		(&rest other-gnuplot-commands)
-	&body data/options)
-  `(labels ((cmd (fmt-str &rest args)
-	      (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-     (mgl-gnuplot:with-session ()
-       (cmd "reset")
-       ,@(if file-name
-	     `((cmd "set output '~a/~a'" ,*dir* ,file-name)
-	       (cmd "set terminal png size ~a ~a" ,size ,terminal-options))
-	     `((cmd "set terminal wxt ~a" ,terminal-options)))
-       ,@(iter
-	   (for c in other-gnuplot-commands)
-	   (typecase c
-	     (string (collect `(cmd ,c)))
-	     (list (collect `(cmd ,@c)))
-	     (t (error "Do not know how to handle command: ~a" c))))
-       (mgl-gnuplot:plot*
-	(list
-	 ,@(iter
-	     (for (data opt) in data/options)
-	     (for options = (if opt opt "with lines lc 0 title ''"))
-	     (collect `(mgl-gnuplot:data* ,data ,options))))) 
-       (cmd "unset output"))
-     (format t "~a" ,file-name)))
-
-(defun normalize-to-one (x/y-s)
-  (let+ ((max (reduce #'max x/y-s :key #'second)))
-    (mapcar #'(lambda (x/y) (list (first x/y) (/ (second x/y) max))) x/y-s)))
-
-#+END_SRC
-
-With that, define the data given in [fn:1]:
+First, define the data given in [fn:1]:
 
 #+BEGIN_SRC lisp :results none :in-package :bayesian-example
 (defparameter example-data
@@ -82,11 +45,9 @@ With that, define the data given in [fn:1]:
     (57 1.174) (58 0.558) (59 1.282) (60 0.384) (61 0.12) (62 0.187) (63 0.646) (64 0.399)))
 #+END_SRC
 
-And then plot it:
+And then plot it to take a look at it (for the definition of plot see [[useful functions]]):
 
-#+BEGIN_SRC lisp :results output file :exports both
-(in-package :bayesian-example)
-
+#+BEGIN_SRC lisp :results output file :exports both :package :bayesian-example
 (plot (:file-name "example/just-plot.png")
     ("set xlabel 'channel #'" "set ylabel 'temp. [mK]'" "set xrange [1:64]")
   (example-data "with points pt 7 lc 7 title ''")
@@ -96,8 +57,8 @@ And then plot it:
 #+RESULTS:
 [[file:example/just-plot.png]]
 
-Ok, looks good. To do some analysis on it with the /bayesian-analysis/ package, we need to
-cast the data into a form the library understands:
+But to do some analysis on it with the /bayesian-analysis/ package, we need to cast the data
+into a form the library understands:
 
 #+BEGIN_SRC lisp :results none :package :bayesian-example
 (ba:define-data-class toy-data (ch "channel number") (mK "temperature") () (obj (source list))
@@ -143,15 +104,19 @@ To express these two models using /bayesian-analysis/, we simply write:
     ((νᵢ) ($ Τ * (exp (- (νᵢ - ν₀) ^ 2 / (2 * σₗ ^ 2))))))
     #+END_SRC
 
-The model definition also already specified a choice and range of priors. Here T is a
+The model definition also already specifies a choice and range of priors. Here T is a
 scale parameter and best described using a Jeffreys prior (see below). By default
 parameters T, \nu_0 are marginalized over. The defintion of the model also specifies
 default values for the MCMC samplers. All of the parameters and default values can be
-overwritten when instanciating the model. We also specifiy that all data has an error that
+overwritten when instantiating the model. We also specifiy that all data has an error that
 follows a gaussian distribution (/:d_i=f_i+gaussian_error_1_equal_sigma/) with \sigma=1.
 
+Finally, f(\nu_i) is specified, where /$/ is a macro provided by /infix-math/.
+
+
 ** Toy problem, analysis
-and with that, we can first find an optimal solution using MCMC:
+With that we can easily generate posteriors for the parameters using the
+Metropolis-Hastings algorithm (with 200000 iterations in this example).
 #+BEGIN_SRC lisp :results none
 (in-package :bayesian-example)
 
@@ -253,11 +218,52 @@ plot, and compare to an integrated solution:
 
 #+END_SRC
 
-
+#+BEGIN_SRC lisp
 (ba:define-bayesian-model (no-line toy-data) ()
     (:d_i=f_i+gaussian_error_1_equal_sigma
      :equal-sigma-parameter (sigma :default 1d0))
     ((x) 0d0))
+#+END_SRC
+
+** Useful functions
+<<useful functions>>
+Let us define a plot macro to make life a bit easier:
+#+BEGIN_SRC lisp :results none :in-package :bayesian-example
+(defmacro plot ((&key file-name
+		      (terminal-options "enhanced font 'Georgia,10' dashed")
+		      ;; this seems to be a good value for github
+		      (size "860,450"))
+		(&rest other-gnuplot-commands)
+	&body data/options)
+  `(labels ((cmd (fmt-str &rest args)
+	      (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+     (mgl-gnuplot:with-session ()
+       (cmd "reset")
+       ,@(if file-name
+	     `((cmd "set output '~a/~a'" ,*dir* ,file-name)
+	       (cmd "set terminal png size ~a ~a" ,size ,terminal-options))
+	     `((cmd "set terminal wxt ~a" ,terminal-options)))
+       ,@(iter
+	   (for c in other-gnuplot-commands)
+	   (typecase c
+	     (string (collect `(cmd ,c)))
+	     (list (collect `(cmd ,@c)))
+	     (t (error "Do not know how to handle command: ~a" c))))
+       (mgl-gnuplot:plot*
+	(list
+	 ,@(iter
+	     (for (data opt) in data/options)
+	     (for options = (if opt opt "with lines lc 0 title ''"))
+	     (collect `(mgl-gnuplot:data* ,data ,options))))) 
+       (cmd "unset output"))
+     (format t "~a" ,file-name)))
+
+(defun normalize-to-one (x/y-s)
+  (let+ ((max (reduce #'max x/y-s :key #'second)))
+    (mapcar #'(lambda (x/y) (list (first x/y) (/ (second x/y) max))) x/y-s)))
+
+#+END_SRC
+
 
 * Footnotes
 [fn:1] /Bayesian Logical Data Analysis for the Physical Sciences/, Cambridge University
