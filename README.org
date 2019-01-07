@@ -48,8 +48,9 @@ First, define the data given in [fn:1]:
 And then plot it to take a look at it (for the definition of plot see [[Useful functions]]):
 
 #+BEGIN_SRC lisp :results output file :exports both :package :bayesian-example
-(plot (:file-name "example/just-plot.png")
-    ("set xlabel 'channel #'" "set ylabel 'temp. [mK]'" "set xrange [1:64]")
+(plot (:file-name "example/just-plot.png" :size "860,400")
+    ("set xlabel 'channel #'" "set ylabel 'temp. [mK]'" "set xrange [1:64]"
+     "set title 'Spectral data for toy problem (from Gregory, 2005)'")
   (example-data "with points pt 7 lc 7 title ''")
   (example-data "with histeps lc 7 title ''"))
 #+END_SRC
@@ -121,7 +122,7 @@ Finally, f(\nu_i) is defined, where $ is a macro provided by /infix-math/.
 
 ** Toy problem, generating distributions
 With that we can easily generate posteriors for the parameters using the
-Metropolis-Hastings algorithm (with 200000 iterations in this instance).
+Metropolis-Hastings algorithm (with 200000 iterations).
 #+BEGIN_SRC lisp :results none :package :bayesian-example
 (defparameter *mcmc-result* (ba:find-optimum (make-instance 'ba:metropolis-hastings :no-iterations 200000)
 					     (make-instance 'line)
@@ -156,12 +157,13 @@ integration routine):
        "set xrange [1:64]"
        "set xlabel 'Channel #'"
        "set ylabel 'P(ν_0) [arb.]'")
+    ((normalize-to-one ba:binned-data)
+     "with boxes lc 0 lw 0.1 fill solid 0.25 title 'MCMC result (200000 iterations)'")
     ((normalize-to-one
       (ba:parameter-pdf-integrate '(ν₀ 1 64) 200 '((Τ 5e-2 100))
 				  (make-instance 'line)
 				  (ba:initialize-from-source 'toy-data example-data)))
-     "with lines lc 7 lw 2 dt 1 title 'Integrated result'")
-    ((normalize-to-one ba:binned-data) "with histeps lc 0 title 'MCMC result (200000 iterations)'")))
+     "with lines lc 7 lw 2 dt 1 title 'Integrated result'")))
 #+END_SRC
 
 #+RESULTS:
