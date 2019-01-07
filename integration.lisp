@@ -53,14 +53,15 @@
 	 (likelihood (ba:initialize-likelihood model-copy data))
 	 (ln-of-joint-prior (get-ln-of-joint-prior-lambda parameters model-copy))
 	 ((&slots constant/log-of-likelihood varying/log-of-likelihood) likelihood))
-    (iter
-      (for (p start end) in parameters)
-      (for fun initially #'(lambda () (exp
-				  (+ (funcall ln-of-joint-prior)
-				     (funcall varying/log-of-likelihood))))
-	   ;; get-integration-fun-for-parameter creates a recursive integration function
-	   then (get-integration-fun-for-parameter p start end model-copy fun integration-function-creator))
-      (finally (return (* (exp (funcall constant/log-of-likelihood)) (funcall fun)))))))
+    (labels ((d (n) (coerce n 'double-float)))
+      (iter
+	(for (p start end) in parameters)
+	(for fun initially #'(lambda () (exp
+				    (+ (funcall ln-of-joint-prior)
+				       (funcall varying/log-of-likelihood))))
+	     ;; get-integration-fun-for-parameter creates a recursive integration function
+	     then (get-integration-fun-for-parameter p (d start) (d end) model-copy fun integration-function-creator))
+	(finally (return (* (exp (funcall constant/log-of-likelihood)) (funcall fun))))))))
 
 
 
@@ -69,19 +70,21 @@
 (defun parameter-pdf-integrate (parameter no-bins parameters-to-marginalize model data
 				&key (integration-function-creator #'gsl-cffi:create-integration-function)
 				     normalize)
-  (let+ (((p-name begin end) parameter)
-	 (new-model (copy-object model))
-	 (log-prior (get-prior-for-parameter new-model p-name)))
-    (iter
-      (for x from begin to end by (/ (- end begin) no-bins))
-      (setf (slot-value new-model p-name) x)
-      (for int = (* 
-		  (exp (funcall log-prior))
-		  (integrate-over new-model data parameters-to-marginalize
-				  :integration-function-creator integration-function-creator)))
-      (sum int into integral)
-      (collect (list x int) into vals)
-      (finally
-	  (return (if normalize
-		      (mapcar #'(lambda (x/y) (list (first x/y) (/ (second x/y) integral))) vals)
-		      vals))))))
+  (labels ((d (n) (coerce n 'double-float)))
+    (let+ (((p-name begin end) parameter)
+	   (new-model (copy-object model))
+	   (log-prior (get-prior-for-parameter new-model p-name)))
+      (iter
+	(for x from (d begin) to (d end)
+	     by (d (/ (- end begin) no-bins)))
+	(setf (slot-value new-model p-name) x)
+	(for int = (* 
+		    (exp (funcall log-prior))
+		    (integrate-over new-model data parameters-to-marginalize
+				    :integration-function-creator integration-function-creator)))
+	(sum int into integral)
+	(collect (list x int) into vals)
+	(finally
+	    (return (if normalize
+			(mapcar #'(lambda (x/y) (list (first x/y) (/ (second x/y) integral))) vals)
+			vals)))))))

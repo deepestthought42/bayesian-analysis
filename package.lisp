@@ -77,6 +77,8 @@
    #:with-cached-bindings
    #:get-optimal-values
    #:marginalized-parameters
-   #:parameter-infos)
+   #:parameter-infos
+   #:parameter-pdf-integrate
+   #:get-iteration-value-data)
   (:nicknames ba))
 

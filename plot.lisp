@@ -7,6 +7,8 @@
 (defgeneric plot-result-models (input-model result-model data &key))
 
 (defgeneric plot-iteration-values (mcmc-result &key (params-to-plot) (start) end (every)))
+(defgeneric get-iteration-value (mcmc-result parameter &key (start) end (every)))
+
 (defgeneric plot-data (data &key))
 (defgeneric plot-likelihood (mcmc-result &key (start) end (every)))
 
@@ -163,14 +165,24 @@
 
 
 
+(defmethod get-iteration-value-data ((result mcmc-optimization-result) parameter &key (start 0) (end) (every 1))
+  (let+ (((&slots iteration-accumulator) result)
+	 ((&slots marginalized-parameters parameter-array no-iterations) iteration-accumulator)
+	 (end (if end end no-iterations))
+	 (index-param (position parameter marginalized-parameters)))
+    (unless index-param (error "Unknown parameter: ~a" parameter))
+    (iter
+      (for i from start below end)
+      (if (= (mod i every) 0)
+	  (collect (list i (aref parameter-array index-param i)))))))
+
 
 
 (defmethod plot-iteration-values ((result mcmc-optimization-result)
 				  &key (params-to-plot) (start 0) (end) (every 1)
 				       (other-plot-options ""))
   (let+ (((&slots iteration-accumulator) result)
-	 ((&slots marginalized-parameters parameter-array no-iterations) iteration-accumulator)
-	 (end (if end end no-iterations)))
+	 ((&slots marginalized-parameters parameter-array no-iterations) iteration-accumulator))
     (alexandria:if-let (diff (set-difference params-to-plot marginalized-parameters))
       (error "Unknown parameters: ~{~a~^, ~}" diff))
     (mgl-gnuplot:plot*
@@ -178,12 +190,9 @@
        (for p in (if params-to-plot params-to-plot marginalized-parameters))
        (for index-param = (position p marginalized-parameters))
        (collect
-	   (mgl-gnuplot:data*
-	    (iter
-	      (for i from start below end)
-	      (if (= (mod i every) 0)
-		  (collect (list i (aref parameter-array index-param i)))))
-	    (format nil "with steps ~a title '~a'" other-plot-options p)))))))
+	   (get-iteration-value-data ))))))
+
+
 
 (defmethod plot-parameter-distribution ((result optimized-parameters) parameter
 					&key title
@@ -204,10 +213,10 @@
 		   (offset-around-median median)
 		   (t 0d0)))
 	 (binned-data
-	        (iter
-		  (for d in binned-data)
-		  (collect (list (- (funcall fn-on-x (first d)) offset)
-				 (second d)))))
+	  (iter
+	    (for d in binned-data)
+	    (collect (list (- (funcall fn-on-x (first d)) offset)
+			   (second d)))))
 	 (mgl-data
 	  (list
 	   (mgl-gnuplot:data* (iter
