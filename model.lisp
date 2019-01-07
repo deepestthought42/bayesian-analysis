@@ -252,7 +252,7 @@
 	 (no-independent-params (length independent-parameters))
 	 (no-model-parameters (length model-parameters)))
     (%check-likelihood-params likelihood-type equal-sigma-parameter)
-    `(progn
+    `(eval-when (:compile-toplevel :load-toplevel :execute)
        ,@(make-model-class-and-coby-object name model-parameters)
        ,(make-initialize-after-code name model-function-name (mapcar #'first model-parameters)
 				    documentation model-prior-code (if cache-size cache-size

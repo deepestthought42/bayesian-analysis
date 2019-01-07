@@ -11,29 +11,32 @@ course, no guarantee on correctness.
 ** Toy problem, setup
 That being said, let's say you have some spectral line data (this problem is a slightly
 changed copy of a problem from [fn:1], Chapter 3) and want to answer some questions about
-it. So, first we load /bayesian-analysis/ and define a package (and directory, this needs to
-be adjusted for other diectory structures) to work in [fn:2].
+it. So, first we load /bayesian-analysis/ and define a package to work in [fn:2].
 
 #+BEGIN_SRC lisp :results none
-(ql:quickload :bayesian-analysis)
+;; (ql:quickload :bayesian-analysis)
 (ql:quickload :let-plus)
 (ql:quickload :iterate)
 (ql:quickload :infix-math)
 
 (defpackage #:bayesian-example
   (:use :cl :iterate :let-plus))
+#+END_SRC
 
-(in-package #:bayesian-example)
+Then, let's define the working directory; this needs to be adjusted for other diectory
+structures, of course.
 
+#+begin_src lisp :results none
+(in-package :bayesian-example)
 ;; set to my copy of the repository to be able to easily create this document (mainly the
 ;; plots)
 (defparameter *dir* "/home/renee/phd/src/penning-analysis.project/bayesian-analysis/")
-#+END_SRC
+#+end_src
 
+Then, define the data to work as given in [fn:1]:
 
-First, define the data given in [fn:1]:
-
-#+BEGIN_SRC lisp :results none :in-package :bayesian-example
+#+BEGIN_SRC lisp :results none
+(in-package :bayesian-example)
 (defparameter example-data
   '((1 1.42) (2 0.468) (3 0.762) (4 1.312) (5 2.029) (6 0.086) (7 1.249) (8 0.368)
     (9 0.657) (10 1.294) (11 0.235) (12 0.192) (13 0.269) (14 0.827) (15 0.685) (16 0.702)
@@ -45,10 +48,12 @@ First, define the data given in [fn:1]:
     (57 1.174) (58 0.558) (59 1.282) (60 0.384) (61 0.12) (62 0.187) (63 0.646) (64 0.399)))
 #+END_SRC
 
-And then plot it to take a look at it (for the definition of plot see [[Useful functions]]):
+And plot it to take a look at it (for the definition of plot see [[Useful functions]]):
 
-#+BEGIN_SRC lisp :results output file :exports both :package :bayesian-example
+#+BEGIN_SRC lisp :results output file :exports both
+(in-package :bayesian-example)
 (plot (:file-name "example/just-plot.png" :size "860,400")
+
     ("set xlabel 'channel #'" "set ylabel 'temp. [mK]'" "set xrange [1:64]"
      "set title 'Spectral data for toy problem (from Gregory, 2005)'")
   (example-data "with points pt 7 lc 7 title ''")
@@ -58,14 +63,16 @@ And then plot it to take a look at it (for the definition of plot see [[Useful f
 #+RESULTS:
 [[file:example/just-plot.png]]
 
-Some of the questions we wanna answer are: given the data, what is the likelihood of a
-signal at channel with \nu_0=37 and compare it to the likelihood of everything being
-noise. 
+Now, some of the questions we (might) wanna answer are: given the data, what is the
+likelihood of a signal at channel with \nu_0=37 and compare it to the likelihood of
+everything being noise.
 
 But to do some analysis on it with the /bayesian-analysis/ package, we first need to cast
 the data into a form the library understands:
 
-#+BEGIN_SRC lisp :results none :package :bayesian-example
+#+BEGIN_SRC lisp :results none 
+(in-package :bayesian-example)
+
 (ba:define-data-class toy-data (ch "channel number") (mK "temperature") () (obj (source list))
   (let ((dim (length source)))
     (setf ch (make-array dim :element-type 'double-float)
@@ -99,9 +106,9 @@ Gaussian noise specified to have \sigma = 1mK.
 
 To express the model that describes a line in the data using /bayesian-analysis/, we simply
 write:
-#+BEGIN_SRC lisp :results none :in-package :bayesian-example
+#+BEGIN_SRC lisp :results none
+(in-package :bayesian-example)
 (use-package :infix-math)
-
 (ba:define-bayesian-model (line toy-data)
     ((Τ :default 2 :prior :jeffreys :marginalize t :min 5e-2 :max 100 :sample-sigma 0.5)
      (ν₀ :default 37 :prior :uniform :marginalize t :min 1 :max 64 :sample-sigma 2.5)
@@ -123,20 +130,25 @@ Finally, f(\nu_i) is defined, where $ is a macro provided by /infix-math/.
 ** Toy problem, generating distributions
 With that we can easily generate posteriors for the parameters using the
 Metropolis-Hastings algorithm (with 200000 iterations).
-#+BEGIN_SRC lisp :results none :package :bayesian-example
+#+BEGIN_SRC lisp :results none
+(in-package #:bayesian-example)
+
 (defparameter *mcmc-result* (ba:find-optimum (make-instance 'ba:metropolis-hastings :no-iterations 200000)
 					     (make-instance 'line)
-					     (ba:initialize-from-source 'toy-data t)))
+					     (ba:initialize-from-source 'toy-data example-data)))
 #+END_SRC
 
 Let's have a look at the sampled values for T and \nu_0:
 
-#+BEGIN_SRC lisp :results output file :exports both :package bayesian-example
-(plot (:multiplot "layout 1,2" :file-name "example/sampled-values.png") ()
+#+BEGIN_SRC lisp :results output file :exports both
+(in-package #:bayesian-example)
+(plot (:multiplot "layout 1,2" :file-name "example/sampled-values.png" :size "850, 380") ()
   ((ba:get-iteration-value-data *mcmc-result* 'Τ :every 50) "with lines lc 7 title ''"
-   "set title '(every 50th) value of T sampled with MCMC'")
+   "set title '(every 50th) value of T'"
+   "set xlabel 'no iteration'" "set ylabel 'T [mK]'")
   ((ba:get-iteration-value-data *mcmc-result* 'ν₀ :every 50) "with lines lc 4 title ''"
-   "set title '(every 50th) value of ν_0 sampled with MCMC'"))
+   "set title '(every 50th) value of ν_0'"
+   "set ylabel 'ν₀ [ch #]'"))
 #+END_SRC
 
 #+RESULTS:
@@ -148,98 +160,67 @@ result arrived at when numerically integrating over the marginalized parameters 
 limitations -- i.e. not using arbitrary precision -- of the used GNU scientific library
 integration routine):
 
-#+BEGIN_SRC lisp :results output file :exports both :in-package :bayesian-example
+#+BEGIN_SRC lisp :results output file :exports both
+(in-package #:bayesian-example)
 (let+ ((p-res (ba:get-parameter-results *mcmc-result* :start 2000 :no-bins 200))
        ((&slots ba:binned-data) (ba:get-parameter-info p-res 'ν₀)))
-  (plot (:file-name "example/nu0.png")
-      ("set title 'Posterior PDF for ν_0 when marginalizing over T'"
+  (plot (:file-name "example/nu0.png" :size "850,350")
+      ("set title 'Posterior PDF for ν_0'"
        "set yrange [0:1.1]"
        "set xrange [1:64]"
        "set xlabel 'Channel #'"
-       "set ylabel 'P(ν_0) [arb.]'")
+       "set ylabel 'P(ν_0|D,M,I) [arb.]'")
     ((normalize-to-one ba:binned-data)
-     "with boxes lc 0 lw 0.1 fill solid 0.25 title 'MCMC result (200000 iterations)'")
+     "with histeps lc 0 lw 1.25 title 'MCMC result (200000 iterations)'")
     ((normalize-to-one
-      (ba:parameter-pdf-integrate '(ν₀ 1 64) 200 '((Τ 5e-2 100))
+      (ba:parameter-pdf-integrate '(ν₀ 1 64) 400 '((Τ 5e-2 100))
 				  (make-instance 'line)
 				  (ba:initialize-from-source 'toy-data example-data)))
-     "with lines lc 7 lw 2 dt 1 title 'Integrated result'")))
+     "with lines lc 7 lw 2 dt '-' title 'Integrated result'")))
 #+END_SRC
 
 #+RESULTS:
 [[file:example/nu0.png]]
 
-This lines up well, so we are doing something right ;)
+This lines up well. Next, we investigate the effect of different types of prior and how
+this can be accomplished using the /bayesian-analysis/ package (again following the script
+set by Gregory). The temperature /T/ is a scale parameter, which is why we modeled it using
+a Jeffreys prior; it is very easy to change that, though:
 
-#+BEGIN_SRC lisp
-
+#+BEGIN_SRC lisp :results output file :exports both
+(in-package :bayesian-example)
 (defparameter *mcmc-result-uniform*
   (ba:find-optimum (make-instance 'ba:metropolis-hastings :no-iterations 200000)
-		   (make-instance 'line :temperature-prior :uniform)
-		   (ba:initialize-from-source 'toy-data t)))
+		   (make-instance 'line :Τ-prior :uniform)
+		   (ba:initialize-from-source 'toy-data example-data)))
 
 
 (let+ ((p-res (ba:get-parameter-results *mcmc-result* :start 2000 :no-bins 75))
-       ((&slots ba:binned-data) (ba:get-parameter-info p-res 'temperature))
+       ((&slots ba:binned-data) (ba:get-parameter-info p-res 'Τ))
        (p-res-uniform (ba:get-parameter-results *mcmc-result-uniform* :start 2000 :no-bins 75))
        ((&slots (binned-data-uniform ba:binned-data))
-	(ba:get-parameter-info p-res-uniform 'temperature)))
-  (plot () ("set yrange [0:1.1]")
-    ((normalize-to-one
-      (ba::parameter-pdf-integrate '(temperature 1d-1 5d0) 200 '((ν₀ 1d0 64d0))
-				   (make-instance 'line)
-				   (ba:initialize-from-source 'toy-data t)
-				   :normalize t))
-     "with lines lc 7 lw 2 dt 1 title 'Integrated result'")
+	(ba:get-parameter-info p-res-uniform 'Τ))
+       (data (ba:initialize-from-source 'toy-data example-data)))
+  (plot (:file-name "example/prior-type.png" :size "850,350")
+      ("set yrange [0:1.1]" "set xrange [0:4]" "set title 'Comparing different priors'"
+       "set xlabel 'Temperature [mK]'" "set ylabel 'P(T|D,M,I) [arb.]'")
     ((normalize-to-one ba:binned-data) "with histeps lc 0 title 'MCMC result'")
     ((normalize-to-one
-      (ba::parameter-pdf-integrate '(temperature 1d-1 5d0) 200 '((ν₀ 1d0 64d0))
-				   (make-instance 'line :temperature-prior :uniform)
-				   (ba:initialize-from-source 'toy-data t)
-				   :normalize t))
-     "with lines lc 9 lw 1.5 dt 1 title 'Integrated result -- Uniform prior'")
-    ((normalize-to-one binned-data-uniform) "with histeps lc 3 title 'MCMC result -- Uniform prior'")))
-
-
-
-
-
-
-
-
-(labels ((cmd (fmt-str &rest args)
-	   (mgl-gnuplot:command (apply #'format nil fmt-str args))))
-  (mgl-gnuplot:with-session ()
-    (cmd "reset")
-    (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
-    (ba:plot-iteration-values
-     (ba:find-optimum (make-instance 'ba:metropolis-hastings :no-iterations 100000)
-		      (make-instance 'line)
-		      (ba:initialize-from-source 'toy-data t))
-     :every 20 :params-to-plot '(temperature)
-     :other-plot-options "lc 0")
-    (cmd "unset output")))
-
-
-
-(let+ ((data (ba:initialize-from-source 'toy-data t))
-       (model (make-instance 'line)))
-  (plot () ()
-    ((ba::parameter-pdf-integrate '(temperature 1d-1 5d0) 200 '((ν₀ 1d0 64d0))
-				  model data :normalize t)
-     "with lines lc 0 dt 1 title 'Uniform prior'")))
-
-
-
-
-
-
-
-
-
+      (ba::parameter-pdf-integrate '(Τ 1d-1 5d0) 200 '((ν₀ 1d0 64d0))
+				   (make-instance 'line) data))
+     "with lines lc 7 lw 2 dt 1 title 'Integrated result'")
+    ((normalize-to-one binned-data-uniform) "with histeps lc 0 title 'MCMC result -- Uniform prior'")
+    ((normalize-to-one
+      (ba::parameter-pdf-integrate '(Τ 1d-1 5d0) 200 '((ν₀ 1d0 64d0))
+				   (make-instance 'line :Τ-prior :uniform) data))
+     "with lines lc 3 lw 2 dt 1 title 'Integrated result -- Uniform prior'")))
 #+END_SRC
 
+#+RESULTS:
+[[file:example/prior-type.png]]
+
 #+BEGIN_SRC lisp
+(in-package :bayesian-example)
 (ba:define-bayesian-model (no-line toy-data) ()
     (:d_i=f_i+gaussian_error_1_equal_sigma
      :equal-sigma-parameter (sigma :default 1d0))
@@ -248,7 +229,8 @@ This lines up well, so we are doing something right ;)
 
 ** Useful functions
 Let us define a plot macro to make life a bit easier:
-#+BEGIN_SRC lisp :results none :in-package :bayesian-example
+#+BEGIN_SRC lisp :results none
+(in-package :bayesian-example)
 (defmacro plot ((&key file-name
 		      (terminal-options "enhanced font 'Georgia,10' dashed")
 		      ;; this seems to be a good value for github
@@ -269,7 +251,7 @@ Let us define a plot macro to make life a bit easier:
 	 (cmd "reset")
 	 ,@(if file-name
 	       `((cmd "set output '~a/~a'" ,*dir* ,file-name)
-		 (cmd "set terminal png size ~a ~a" ,size ,terminal-options))
+		 (cmd "set terminal pngcairo size ~a ~a" ,size ,terminal-options))
 	       `((cmd "set terminal wxt ~a" ,terminal-options)))
 	 ,@(when multiplot (typecase multiplot
 			     (string `((cmd "set multiplot ~a" ,multiplot)))
@@ -293,20 +275,20 @@ Let us define a plot macro to make life a bit easier:
 	 (cmd "unset output"))
        (format t "~a" ,file-name))))
 
+#+END_SRC
+And also a normaliztion function:
+#+BEGIN_SRC lisp :results none
+(in-package :bayesian-example)
 (defun normalize-to-one (x/y-s)
   (let+ ((max (reduce #'max x/y-s :key #'second)))
     (mapcar #'(lambda (x/y) (list (first x/y) (/ (second x/y) max))) x/y-s)))
-
-
-
 #+END_SRC
-
-
 * Footnotes
 [fn:1] /Bayesian Logical Data Analysis for the Physical Sciences/, Cambridge University
   Press, 2005, https://doi.org/10.1017/CBO9780511791277
 
 [fn:2] Within a properly setup emacs + slime or sly, and given that quicklisp knows about
 bayesian-analysis using for example https://github.com/deepestthought42/with-project-dir,
-this org-mode file can be executed directly
+this org-mode file can be executed directly. Which is the way I like to do reproducible
+research.
 

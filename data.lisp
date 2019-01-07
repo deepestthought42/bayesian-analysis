@@ -204,8 +204,9 @@ automatically after INIT-FROM-SOURCE-BODY has been executed).
   (let+ (((&values x-slots y-slots error-slots all-slots all-descriptions)
 	  (make-all-slots independent-parameters dependent-parameters error-parameters)))
     (macro-input-checks y-slots error-slots)
-    `(eval-when (:compile-toplevel :load-toplevel)
-       ,(make-class-def name all-slots)
+    `(progn
+       (eval-when (:compile-toplevel :load-toplevel :execute)
+	 ,(make-class-def name all-slots))
        ,(make-init-instance-method name all-slots all-descriptions x-slots y-slots error-slots)
        ,(make-init-from-source-method name init-from-source-body object-var-name
 				      source-type source-var-name all-slots key-params-to-source-fn)
