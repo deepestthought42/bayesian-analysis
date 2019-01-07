@@ -20,7 +20,10 @@
 			 params-and-range)))
     (ba::integrate-over model data params)))
 
-(defun odds-ratio-1/2 (result-1 params-1 result-2 params-2)
+(defgeneric odds-ratio-1/2 (a params-a b params-b))
+
+(defmethod odds-ratio-1/2 ((result-1 optimized-parameters) params-1
+			   (result-2 optimized-parameters) params-2)
   "Given parameter results in RESULT-1 and RESULT-2, this function
 will calculate the odds ratio for the result-models of RESULT-1 and
 RESULT-2. The marginal posterior will be calculated by numerically

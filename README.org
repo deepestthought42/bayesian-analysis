@@ -182,10 +182,10 @@ integration routine):
 #+RESULTS:
 [[file:example/nu0.png]]
 
-This lines up well. Next, we investigate the effect of different types of prior and how
-this can be accomplished using the /bayesian-analysis/ package (again following the script
-set by Gregory). The temperature /T/ is a scale parameter, which is why we modeled it using
-a Jeffreys prior; it is very easy to change that, though:
+Seems reasonable. Next, we investigate the effect of different types of prior and how this
+can be accomplished using the /bayesian-analysis/ package (again following the script set by
+Gregory). The temperature /T/ is a scale parameter which is why we modeled it using a
+Jeffreys prior; it is very easy to change that, though:
 
 #+BEGIN_SRC lisp :results output file :exports both
 (in-package :bayesian-example)
@@ -219,6 +219,12 @@ a Jeffreys prior; it is very easy to change that, though:
 #+RESULTS:
 [[file:example/prior-type.png]]
 
+This also lines up well with expectations and Gregory's analysis. 
+** Toy problem, model selection
+Now for the actual question. Does the data support the theory that there is a line at
+channel 37 with a \sigma_L=2 or is the peak in that area just an artefact. To answer the
+that question, we need to define a simple noise model:
+
 #+BEGIN_SRC lisp
 (in-package :bayesian-example)
 (ba:define-bayesian-model (no-line toy-data) ()
@@ -227,6 +233,11 @@ a Jeffreys prior; it is very easy to change that, though:
     ((x) 0d0))
 #+END_SRC
 
+With that in place, we can calculate the odds ratio easily:
+#+begin_src lisp
+(in-package :bayesian-example)
+
+#+end_src
 ** Useful functions
 Let us define a plot macro to make life a bit easier:
 #+BEGIN_SRC lisp :results none

@@ -55,12 +55,12 @@
 	 ((&slots constant/log-of-likelihood varying/log-of-likelihood) likelihood))
     (labels ((d (n) (coerce n 'double-float)))
       (iter
-	(for (p start end) in parameters)
 	(for fun initially #'(lambda () (exp
 				    (+ (funcall ln-of-joint-prior)
 				       (funcall varying/log-of-likelihood))))
 	     ;; get-integration-fun-for-parameter creates a recursive integration function
 	     then (get-integration-fun-for-parameter p (d start) (d end) model-copy fun integration-function-creator))
+	(for (p start end) in parameters)
 	(finally (return (* (exp (funcall constant/log-of-likelihood)) (funcall fun))))))))
 
 
