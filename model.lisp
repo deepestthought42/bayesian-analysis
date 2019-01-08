@@ -35,7 +35,7 @@
 (defmethod get-1d-plot-function ((model model))
   (let+ (((&slots model-function) model))
     #'(lambda (x)
-	(funcall model-function x model))))
+	(funcall model-function (coerce x 'double-float) model))))
 
 (defmethod get-prior-for-parameter ((model model) parameter)
   (let+ (((&slots log-of-all-priors-array all-model-parameters) model)

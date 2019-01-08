@@ -253,7 +253,35 @@ The probabilities, given the data, for the different theories are therefore:
 #+RESULTS:
 [[file:example/probs.png]]
 
-as expected from Gregory's treatment.
+as expected from Gregory's discussion.
+** Toy problem, result
+Given that the data indicates a line in the spectrum with 91\% probability, the last thing
+to do is to plot the most likely version of it (best fit):
+
+#+begin_src lisp :results output file :exports both
+(in-package #:bayesian-example)
+
+(let+ ((data (ba:initialize-from-source 'toy-data example-data))
+       (p-res (ba:get-parameter-results
+	       (ba:find-optimum (make-instance 'ba:metropolis-hastings :no-iterations 20000)
+				(make-instance 'line) data)))
+       ((&slots ba:model) p-res)
+       (fun (ba:get-1d-plot-function ba:model)))
+  (plot (:file-name "example/best-fit.png" :size "850,350")
+      ("set xlabel 'channel #'" "set ylabel 'temp. [mK]'"
+       "set xrange [1:64]" "set xzeroaxis"
+       "set title 'best fit for toy problem")
+    (example-data "with points pt 7 lc 0 title ''")
+    (example-data "with lines lw 0.7 lc 0 title ''")
+    ((iter
+       (for nu from 0 to 64 by 0.1)
+       (collect (list nu (funcall fun nu))))
+     "with lines lc 7 lw 2.5 title 'best fit to data'")))
+#+end_src
+
+#+RESULTS:
+[[file:example/best-fit.png]]
+
 ** Useful functions
 Let us define a plot macro to make life a bit easier:
 #+BEGIN_SRC lisp :results none
