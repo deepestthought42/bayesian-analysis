@@ -74,6 +74,7 @@ when using :d_i=f_i+gaussian_error_1_equal_sigma type likelihood.")))))
 				 :data data-object
 				 :model model-object))))
 
+
 (defun create-likelihood-functions/gaussian/1-unknown-error (model-object data-object
 							     equal-sigma-parameter y_i-f_i)
   (let+ ((no-data-points (no-data-points data-object))

@@ -7,20 +7,26 @@
 	     initialized with the same data object."))))
 
 
+(defgeneric odds-ratio-1/2 (a params-a b params-b))
+(defgeneric calculate-marginal-posterior (for-object data params-and-range))
 
 
-
-(defun calculate-marginal-posterior (parameter-result data params-and-range)
+(defmethod calculate-marginal-posterior ((model model) (data data) params-and-range)
   "Given a parameter-result in PARAMETER-RESULT, a set of data that has "
-  (let+ ((model (ba:model parameter-result))
-	 (params (mapcar #'(lambda (p)
-			     (let+ (((parameter-name range/2) p)
+  (let+ ((params (mapcar #'(lambda (p)
+			     (let+ (((parameter-name range-start &optional range-end) p)
 				    (val (slot-value model parameter-name)))
-			       (list parameter-name (- val range/2) (+ val range/2))))
+			       (if range-end 
+				   (list parameter-name range-start range-end)
+				   (list parameter-name (- val range-start) (+ val range-start)))))
 			 params-and-range)))
     (ba::integrate-over model data params)))
 
-(defgeneric odds-ratio-1/2 (a params-a b params-b))
+(defmethod calculate-marginal-posterior ((parameter-result optimized-parameters) (data data) params-and-range)
+  "Given a parameter-result in PARAMETER-RESULT, a set of data that has "
+  (let+ ((model (ba:model parameter-result)))
+    (calculate-marginal-posterior model data params-and-range)))
+
 
 (defmethod odds-ratio-1/2 ((result-1 optimized-parameters) params-1
 			   (result-2 optimized-parameters) params-2)
