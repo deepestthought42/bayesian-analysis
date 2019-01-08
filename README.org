@@ -242,7 +242,7 @@ With that in place, we can calculate the odds ratio easily:
 #+RESULTS:
 : 0.913
 
-The probabilities, given the data, for the different theories is therefore:
+The probabilities, given the data, for the different theories are therefore:
 
 #+BEGIN_SRC latex :results output raw graphics :file example/probs.png :exports results
 \begin{equation*}
