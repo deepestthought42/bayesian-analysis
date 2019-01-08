@@ -193,30 +193,17 @@ we modeled it using a Jeffreys prior; it is very easy to change that, though:
 (in-package :bayesian-example)
 
 
-(let+ ((uniform (ba:find-optimum (make-instance 'ba:metropolis-hastings :no-iterations 200000)
-				 (make-instance 'line :Τ-prior :uniform :ν0-marginalize nil)
-				 (ba:initialize-from-source 'toy-data example-data)))
-       (jeffreys (ba:find-optimum (make-instance 'ba:metropolis-hastings :no-iterations 200000)
-				  (make-instance 'line :Τ-prior :jeffreys :ν0-marginalize nil)
-				  (ba:initialize-from-source 'toy-data example-data)))
-       (p-res-jeffreys (ba:get-parameter-results jeffreys :start 2000 :no-bins 75))
-       ((&slots ba:binned-data) (ba:get-parameter-info p-res-jeffreys 'Τ))
-       (p-res-uniform (ba:get-parameter-results *mcmc-t-uniform* :start 2000 :no-bins 75))
-       ((&slots (binned-data-uniform ba:binned-data))
-	(ba:get-parameter-info p-res-uniform 'Τ))
-       (data (ba:initialize-from-source 'toy-data example-data)))
+(let+ ((data (ba:initialize-from-source 'toy-data example-data)))
   (plot (:file-name "example/prior-type.png" :size "850,350")
       ("set yrange [0:1.1]"
        "set xrange [0:4]"
        "set title 'Comparing different priors'"
        "set xlabel 'Temperature [mK]'"
        "set ylabel 'P(T|D,M,I) [arb.]'")
-    ((normalize-to-one ba:binned-data) "with histeps lc 0 title 'MCMC result'")
     ((normalize-to-one
       (ba::parameter-pdf-integrate '(Τ 1d-1 5d0) 200 nil 
 				   (make-instance 'line) data))
      "with lines lc 7 lw 2 dt 1 title 'Integrated result'")
-    ((normalize-to-one binned-data-uniform) "with histeps lc 0 title 'MCMC result -- Uniform prior'")
     ((normalize-to-one
       (ba::parameter-pdf-integrate '(Τ 1d-1 5d0) 200 nil
     				   (make-instance 'line :Τ-prior :uniform) data))
