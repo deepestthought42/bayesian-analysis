@@ -4,13 +4,9 @@ odds ratios using Bayesian statistics, most notably a simple implementation of t
 Metropolis-Hastings algorithm. It is based on Gregory's excellent book on the topic [fn:1]
 of Bayesian data analysis.
 
-
-While this library is research quality, it is good enough for my own use -- I give, of
-course, no guarantee on correctness.
-
 ** Toy problem, setup
-That being said, let's say you have some spectral line data (this problem is a slightly
-changed copy of a problem from [fn:1], Chapter 3) and want to answer some questions about
+That being said, let's say you have some spectral line data (this problem is a modified
+version of a problem from [fn:1], Chapter 3) and want to answer some questions about
 it. So, first we load /bayesian-analysis/ and define a package to work in [fn:2].
 
 #+BEGIN_SRC lisp :results none
@@ -23,7 +19,7 @@ it. So, first we load /bayesian-analysis/ and define a package to work in [fn:2]
   (:use :cl :iterate :let-plus :infix-math))
 #+END_SRC
 
-Then, let's define the working directory; this needs to be adjusted for other diectory
+Then, let's define the working directory; this needs to be adjusted for other directory
 structures, of course.
 
 #+begin_src lisp :results none
@@ -94,16 +90,16 @@ there is *no line* in the data, and one where we assume there is a *line* with t
 shape:
 #+BEGIN_SRC latex :results output raw graphics :file example/lineshape.png :exports results
 \begin{equation*}
-  f(\nu_i) = T\exp{\left\{ - \frac{(\nu_i-\nu_0)^{2}}{2\sigma^2_L} \right\}}
+  f(\nu_i) = T\exp{\left\{ - \frac{(\nu_i-\nu_0)^{2}}{2\sigma^2_l} \right\}}
 \end{equation*}
 #+END_SRC
 
 #+RESULTS:
 [[file:example/lineshape.png]]
 
-Where it is assumed that the line has a width of \sigma_L=2ch and the line is predicted to
+Where it is assumed that the line has a width of \sigma_l=2ch and the line is predicted to
 appear in the spectrum at around \nu_0=37. Furthermore, all channel are subject to
-Gaussian noise specified to have \sigma = 1mK.
+Gaussian noise specified to have standard deviation of \sigma = 1mK.
 
 To express the model that describes a line in the data using /bayesian-analysis/, we simply
 write:
@@ -129,9 +125,9 @@ Finally, f(\nu_i) is defined, where $ is a macro provided by /infix-math/.
 
 
 ** Toy problem, generating distributions
-With that we can easily generate posteriors for the parameters using the
-Metropolis-Hastings algorithm and as we first might wanna see the posterior for the center
-frequency \nu_0, we enable marginalization over \nu_0:
+With these definitions in place, we can easily generate posteriors for the parameters
+using the Metropolis-Hastings algorithm and as we first might wanna see the posterior for
+the center frequency \nu_0, we enable marginalization over \nu_0:
 #+BEGIN_SRC lisp :results none
 (in-package #:bayesian-example)
 
@@ -184,10 +180,11 @@ integration routine):
 #+RESULTS:
 [[file:example/nu0.png]]
 
-Seems reasonable and agrees with Gregory. Next, we investigate the effect of different
-types of prior and how this can be accomplished using the /bayesian-analysis/ package (again
-following the script set by Gregory). The temperature /T/ is a scale parameter which is why
-we modeled it using a Jeffreys prior; it is very easy to change that, though:
+Seems reasonable and agrees (visually) with Gregory. Next, we investigate the effect of
+different types of prior and how this can be accomplished using the /bayesian-analysis/
+package (again following the script set by Gregory). The temperature /T/ is a scale
+parameter which is why we modeled it using a Jeffreys prior; it is very easy to change
+that, though:
 
 #+BEGIN_SRC lisp :results output file :exports both
 (in-package :bayesian-example)
@@ -203,7 +200,7 @@ we modeled it using a Jeffreys prior; it is very easy to change that, though:
     ((normalize-to-one
       (ba::parameter-pdf-integrate '(Τ 1d-1 5d0) 200 nil 
 				   (make-instance 'line) data))
-     "with lines lc 7 lw 2 dt 1 title 'Integrated result'")
+     "with lines lc 7 lw 2 dt 1 title 'Integrated result -- Jeffreys prior'")
     ((normalize-to-one
       (ba::parameter-pdf-integrate '(Τ 1d-1 5d0) 200 nil
     				   (make-instance 'line :Τ-prior :uniform) data))
@@ -216,25 +213,27 @@ we modeled it using a Jeffreys prior; it is very easy to change that, though:
 This also lines up well with expectations and Gregory's analysis. 
 ** Toy problem, model selection
 Now for the actual question. Does the data support the theory that there is a line at
-channel 37 with a \sigma_L=2 or is the peak in that area just an artefact. To answer the
+channel 37 with a \sigma_l=2 or is the peak in that area just a noise eartefact. To answer
 that question, we need to define a simple noise model:
 
 #+BEGIN_SRC lisp :results none
 (in-package :bayesian-example)
-(ba:define-bayesian-model (no-line toy-data) ()
+(ba:define-bayesian-model (noise toy-data) ()
     (:d_i=f_i+gaussian_error_1_equal_sigma
-     :equal-sigma-parameter (sigma :default 1d0))
-    ((x) 0d0))
+     :equal-sigma-parameter (sigma :default 1))
+    ((x) 0))
 #+END_SRC
 
-With that in place, we can calculate the odds ratio easily:
+The /noise/ model specifies that the expected intensity is zero everywhere and the noise
+parameters are the same as before. With that in place, we can calculate the odds ratio
+easily:
 
 #+begin_src lisp :exports both
 (in-package :bayesian-example)
 
 (let+ ((data (ba:initialize-from-source 'toy-data example-data))
        (L-M1 (ba:calculate-marginal-posterior (make-instance 'line) data '((Τ 0.1 100))))
-       (L-M2 (ba:calculate-marginal-posterior (make-instance 'no-line) data '()))
+       (L-M2 (ba:calculate-marginal-posterior (make-instance 'noise) data '()))
        (odds (/ L-M1 L-M2)))
   (format nil "~,3f" ($ 1 / (1 + 1 / odds)) 'single-float))
 #+end_src
@@ -254,8 +253,9 @@ The probabilities, given the data, for the different theories are therefore:
 [[file:example/probs.png]]
 
 as expected from Gregory's discussion.
+
 ** Toy problem, result
-Given that the data indicates a line in the spectrum with 91\% probability, the last thing
+Given that the data indicates a line in the spectrum with 91% probability, the last thing
 to do is to plot the most likely version of it (best fit):
 
 #+begin_src lisp :results output file :exports both
