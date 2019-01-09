@@ -1,27 +1,38 @@
-- [Bayesian Analysis](#org021e94c)
-  - [Toy problem, setup](#org3a1213c)
-  - [Toy problem, model definition](#orga4c43b5)
-  - [Toy problem, generating distributions](#org701c7f5)
-  - [Toy problem, model selection](#orgabb7a0a)
-  - [Toy problem, result](#org48e0cea)
-  - [Useful functions](#org465e15c)
+- [Bayesian Analysis](#orgf94dc48)
+  - [Toy problem, setup](#org9d96a5e)
+  - [Toy problem, model definition](#orgc56e32e)
+  - [Toy problem, generating distributions](#org025fa50)
+  - [Toy problem, model selection](#orgefb7c5e)
+  - [Toy problem, result](#orgc832d86)
+  - [Useful functions](#orgb534d34)
+- [Dependencies](#org2428270)
 
 
-<a id="org021e94c"></a>
+<a id="orgf94dc48"></a>
 
 # Bayesian Analysis
 
 This is a lisp package to specify a model and calculate posterior distributions as well as odds ratios using Bayesian statistics, most notably a simple implementation of the Metropolis-Hastings algorithm. It is based on Gregory's excellent book on the topic<sup><a id="fnr.1" class="footref" href="#fn.1">1</a></sup> of Bayesian data analysis.
 
 
-<a id="org3a1213c"></a>
+<a id="org9d96a5e"></a>
 
 ## Toy problem, setup
 
-That being said, let's say you have some spectral line data (this problem is a modified version of a problem from<sup><a id="fnr.1.100" class="footref" href="#fn.1">1</a></sup>, Chapter 3) and want to answer some questions about it. So, first we load *bayesian-analysis* and define a package to work in<sup><a id="fnr.2" class="footref" href="#fn.2">2</a></sup>.
+Let's say you have some spectral line data (this problem is a modified version of a problem from<sup><a id="fnr.1.100" class="footref" href="#fn.1">1</a></sup>, Chapter 3) and want to answer some questions about it.
+
+First, we make sure that we can load<sup><a id="fnr.2" class="footref" href="#fn.2">2</a></sup> *bayesian-analysis* and its [dependencies](#org2428270):
 
 ```lisp
-;; (ql:quickload :bayesian-analysis)
+(ql:quickload :with-project-dir)
+```
+
+Next, we load *bayesian-analysis* and define a package to work in.
+
+```lisp
+(with-project-dir:with-project-dir ("~/src/bayesian-analysis.project/")
+  (ql:quickload :bayesian-analysis))
+
 (ql:quickload :let-plus)
 (ql:quickload :iterate)
 (ql:quickload :infix-math)
@@ -36,7 +47,7 @@ Then, let's define the working directory; this needs to be adjusted for other di
 (in-package :bayesian-example)
 ;; set to my copy of the repository to be able to easily create this document (mainly the
 ;; plots)
-(defparameter *dir* "/home/renee/phd/src/penning-analysis.project/bayesian-analysis/")
+(defparameter *dir* "~/src/bayesian-analysis.project/bayesian-analysis/")
 ```
 
 Then, define the data to work as given in <sup><a id="fnr.1.100" class="footref" href="#fn.1">1</a></sup>:
@@ -54,7 +65,7 @@ Then, define the data to work as given in <sup><a id="fnr.1.100" class="footref"
     (57 -1.174) (58 -0.558) (59 1.282) (60 -0.384) (61 -0.12) (62 -0.187) (63 0.646) (64 0.399)))
 ```
 
-And plot it to take a look at it (for the definition of plot see [1.6](#org465e15c)):
+And plot it to take a look at it (for the definition of plot see [1.6](#orgb534d34)):
 
 ```lisp
 (in-package :bayesian-example)
@@ -89,7 +100,7 @@ But to do some analysis on it with the *bayesian-analysis* package, we first nee
 *ba:define-data-class* is a convenience macro that defines a subclass of *ba:data* and the methods (interface in OOP parlance) necessary to use it - specifically a method to initialize an object of type *toy-data* from a simple list of the form *{x, y}\**.
 
 
-<a id="orga4c43b5"></a>
+<a id="orgc56e32e"></a>
 
 ## Toy problem, model definition
 
@@ -112,14 +123,14 @@ To express the model that describes a line in the data using *bayesian-analysis*
     ((νᵢ) ($ Τ * (exp (- (νᵢ - ν₀) ^ 2 / (2 * σₗ ^ 2))))))
 ```
 
-The model definition also specifies a choice of priors and their ranges. Here T is a scale parameter and best described using a Jeffreys prior (see below), the rest are uniform priors (the default). Parameter T, the signal strength, is unknown and marginalized over by default. The defintion of the model also specifies default values for the MCMC samplers. All of the settings, however, can be overwritten when instantiating a model object. We also specifiy that all data is assumed to have an error distribution that follows a gaussian (by specifying *:d\_i=f\_i+gaussian\_error\_1\_equal\_sigma*) with &sigma;=1. Finally, f(&nu;\_i) is defined, where $ is a macro provided by *infix-math*.
+The model definition also specifies a choice of priors and their ranges. Here T is a scale parameter and best described using a Jeffreys prior (see below), the rest are uniform priors (the default). Parameter T, the signal strength, is unknown and marginalized over by default. The definition of the model also specifies default values for the MCMC samplers. All of the settings, however, can be overwritten when instantiating a model object. We also specify that all data is assumed to have an error distribution that follows a Gaussian (by specifying *:d\_i=f\_i+gaussian\_error\_1\_equal\_sigma*) with &sigma;=1. Finally, f(&nu;\_i) is defined, where $ is a macro provided by *infix-math*.
 
 
-<a id="org701c7f5"></a>
+<a id="org025fa50"></a>
 
 ## Toy problem, generating distributions
 
-With these definitions in place, we can easily generate posteriors for the parameters using the Metropolis-Hastings algorithm and as we first might wanna see the posterior for the center frequency &nu;\_0, we enable marginalization over &nu;\_0:
+With these definitions in place, we can easily generate posteriors for the parameters using the Metropolis-Hastings algorithm and as we first might wanna see the posterior for the centre frequency &nu;\_0, we enable marginalization over &nu;\_0:
 
 ```lisp
 (in-package #:bayesian-example)
@@ -168,7 +179,7 @@ This seems alright, so let's see what the PDF for &nu;\_0 looks like and compare
 
 ![img](example/nu0.png)
 
-Seems reasonable and agrees (visually) with Gregory. Next, we investigate the effect of different types of prior and how this can be accomplished using the *bayesian-analysis* package (again following the script set by Gregory). The temperature *T* is a scale parameter which is why we modeled it using a Jeffreys prior; it is very easy to change that, though:
+Seems reasonable and agrees (visually) with Gregory. Next, we investigate the effect of different types of prior and how this can be accomplished using the *bayesian-analysis* package (again following the script set by Gregory). The temperature *T* is a scale parameter which is why we modelled it using a Jeffreys prior; it is very easy to change that, though:
 
 ```lisp
 (in-package :bayesian-example)
@@ -196,7 +207,7 @@ Seems reasonable and agrees (visually) with Gregory. Next, we investigate the ef
 This also lines up well with expectations and Gregory's analysis.
 
 
-<a id="orgabb7a0a"></a>
+<a id="orgefb7c5e"></a>
 
 ## Toy problem, model selection
 
@@ -231,7 +242,7 @@ The probabilities, given the data, for the different theories are therefore:
 as expected from Gregory's discussion.
 
 
-<a id="org48e0cea"></a>
+<a id="orgc832d86"></a>
 
 ## Toy problem, result
 
@@ -261,7 +272,7 @@ Given that the data indicates a line in the spectrum with 91% probability, the l
 ![img](example/best-fit.png)
 
 
-<a id="org465e15c"></a>
+<a id="orgb534d34"></a>
 
 ## Useful functions
 
@@ -315,7 +326,7 @@ Let us define a plot macro to make life a bit easier:
 
 ```
 
-And also a normaliztion function:
+And also a normalization function:
 
 ```lisp
 (in-package :bayesian-example)
@@ -324,8 +335,21 @@ And also a normaliztion function:
     (mapcar #'(lambda (x/y) (list (first x/y) (/ (second x/y) max))) x/y-s)))
 ```
 
+
+<a id="org2428270"></a>
+
+# Dependencies
+
+This project has a number of dependencies not accessible via quicklisp:
+
+-   <https://github.com/deepestthought42/cffi-nlopt>
+-   <https://github.com/deepestthought42/gsl-cffi>
+-   <https://github.com/deepestthought42/math-utils>
+
+I have prepared them for easy loading with <https://github.com/deepestthought42/with-project-dir> in: <https://github.com/deepestthought42/bayesian-analysis.project>
+
 ## Footnotes
 
 <sup><a id="fn.1" class="footnum" href="#fnr.1">1</a></sup> *Bayesian Logical Data Analysis for the Physical Sciences*, Cambridge University Press, 2005, <https://doi.org/10.1017/CBO9780511791277>
 
-<sup><a id="fn.2" class="footnum" href="#fnr.2">2</a></sup> Within a properly setup emacs + slime or sly, and given that quicklisp knows about bayesian-analysis using for example <https://github.com/deepestthought42/with-project-dir>, the org-mode version of this file can be executed directly. Which is the way I like to do reproducible research.
+<sup><a id="fn.2" class="footnum" href="#fnr.2">2</a></sup> Within a properly setup Emacs + slime or sly, and given that quicklisp knows about bayesian-analysis using for example <https://github.com/deepestthought42/with-project-dir>, the org-mode version of this file can be executed directly. Which is the way I like to do reproducible research.

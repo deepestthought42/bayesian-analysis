@@ -5,12 +5,20 @@ Metropolis-Hastings algorithm. It is based on Gregory's excellent book on the to
 of Bayesian data analysis.
 
 ** Toy problem, setup
-That being said, let's say you have some spectral line data (this problem is a modified
-version of a problem from[fn:1], Chapter 3) and want to answer some questions about
-it. So, first we load /bayesian-analysis/ and define a package to work in[fn:2].
+Let's say you have some spectral line data (this problem is a modified version of a
+problem from[fn:1], Chapter 3) and want to answer some questions about it.
 
+First, we make sure that we can load[fn:2] /bayesian-analysis/ and its [[Dependencies][dependencies]]:
+
+#+begin_src lisp :results none
+(ql:quickload :with-project-dir)
+#+end_src
+
+Next, we load /bayesian-analysis/ and define a package to work in.
 #+BEGIN_SRC lisp :results none
-;; (ql:quickload :bayesian-analysis)
+(with-project-dir:with-project-dir ("~/src/bayesian-analysis.project/")
+  (ql:quickload :bayesian-analysis))
+
 (ql:quickload :let-plus)
 (ql:quickload :iterate)
 (ql:quickload :infix-math)
@@ -26,7 +34,7 @@ structures, of course.
 (in-package :bayesian-example)
 ;; set to my copy of the repository to be able to easily create this document (mainly the
 ;; plots)
-(defparameter *dir* "/home/renee/phd/src/penning-analysis.project/bayesian-analysis/")
+(defparameter *dir* "~/src/bayesian-analysis.project/bayesian-analysis/")
 #+end_src
 
 Then, define the data to work as given in [fn:1]:
@@ -117,17 +125,17 @@ write:
 The model definition also specifies a choice of priors and their ranges. Here T is a scale
 parameter and best described using a Jeffreys prior (see below), the rest are uniform
 priors (the default). Parameter T, the signal strength, is unknown and marginalized over
-by default. The defintion of the model also specifies default values for the MCMC
+by default. The definition of the model also specifies default values for the MCMC
 samplers. All of the settings, however, can be overwritten when instantiating a model
-object. We also specifiy that all data is assumed to have an error distribution that
-follows a gaussian (by specifying /:d_i=f_i+gaussian_error_1_equal_sigma/) with \sigma=1.
+object. We also specify that all data is assumed to have an error distribution that
+follows a Gaussian (by specifying /:d_i=f_i+gaussian_error_1_equal_sigma/) with \sigma=1.
 Finally, f(\nu_i) is defined, where $ is a macro provided by /infix-math/.
 
 
 ** Toy problem, generating distributions
 With these definitions in place, we can easily generate posteriors for the parameters
 using the Metropolis-Hastings algorithm and as we first might wanna see the posterior for
-the center frequency \nu_0, we enable marginalization over \nu_0:
+the centre frequency \nu_0, we enable marginalization over \nu_0:
 #+BEGIN_SRC lisp :results none
 (in-package #:bayesian-example)
 
@@ -184,7 +192,7 @@ integration routine):
 Seems reasonable and agrees (visually) with Gregory. Next, we investigate the effect of
 different types of prior and how this can be accomplished using the /bayesian-analysis/
 package (again following the script set by Gregory). The temperature /T/ is a scale
-parameter which is why we modeled it using a Jeffreys prior; it is very easy to change
+parameter which is why we modelled it using a Jeffreys prior; it is very easy to change
 that, though:
 
 #+BEGIN_SRC lisp :results output file :exports both
@@ -332,18 +340,29 @@ Let us define a plot macro to make life a bit easier:
        (format t "~a" ,file-name))))
 
 #+END_SRC
-And also a normaliztion function:
+And also a normalization function:
 #+BEGIN_SRC lisp :results none
 (in-package :bayesian-example)
 (defun normalize-to-one (x/y-s)
   (let+ ((max (reduce #'max x/y-s :key #'second)))
     (mapcar #'(lambda (x/y) (list (first x/y) (/ (second x/y) max))) x/y-s)))
 #+END_SRC
+* Dependencies
+This project has a number of dependencies not accessible via quicklisp:
+- https://github.com/deepestthought42/cffi-nlopt
+- https://github.com/deepestthought42/gsl-cffi
+- https://github.com/deepestthought42/math-utils
+
+I have prepared them for easy loading with
+https://github.com/deepestthought42/with-project-dir in:
+https://github.com/deepestthought42/bayesian-analysis.project
+
+
 * Footnotes
 [fn:1] /Bayesian Logical Data Analysis for the Physical Sciences/, Cambridge University
   Press, 2005, https://doi.org/10.1017/CBO9780511791277
 
-[fn:2] Within a properly setup emacs + slime or sly, and given that quicklisp knows about
+[fn:2] Within a properly setup Emacs + slime or sly, and given that quicklisp knows about
 bayesian-analysis using for example https://github.com/deepestthought42/with-project-dir,
 the org-mode version of this file can be executed directly. Which is the way I like to do
 reproducible research.
